@@ -24,38 +24,45 @@ func (r *RoomRepository) Create(ctx context.Context, req *models.CreateRoomReque
 	query := `
 		INSERT INTO rooms (name, description, capacity, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)
-		RETURNING id, name, description, capacity, created_at, updated_at
 	`
 
 	now := time.Now()
-	row := r.db.QueryRowContext(ctx, query, req.Name, req.Description, req.Capacity, now, now)
-
-	room := &models.Room{}
-	err := row.Scan(&room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+	result, err := r.db.ExecContext(ctx, query, req.Name, req.Description, req.Capacity, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create room: %w", err)
 	}
 
-	return room, nil
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last insert id: %w", err)
+	}
+
+	// Fetch the created room
+	return r.GetByID(ctx, id)
 }
 
 // GetByID retrieves a room by ID
 func (r *RoomRepository) GetByID(ctx context.Context, id int64) (*models.Room, error) {
 	query := `
-		SELECT id, name, description, capacity, created_at, updated_at
+		SELECT *
 		FROM rooms
 		WHERE id = ?
 	`
 
-	row := r.db.QueryRowContext(ctx, query, id)
+	rows, err := r.db.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query room: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, fmt.Errorf("room not found")
+	}
 
 	room := &models.Room{}
-	err := row.Scan(&room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+	err = scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("room not found")
-		}
-		return nil, fmt.Errorf("failed to get room: %w", err)
+		return nil, fmt.Errorf("failed to scan room: %w", err)
 	}
 
 	return room, nil
@@ -64,7 +71,7 @@ func (r *RoomRepository) GetByID(ctx context.Context, id int64) (*models.Room, e
 // List retrieves all rooms with pagination
 func (r *RoomRepository) List(ctx context.Context, limit, offset int) ([]*models.Room, error) {
 	query := `
-		SELECT id, name, description, capacity, created_at, updated_at
+		SELECT *
 		FROM rooms
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
@@ -79,7 +86,7 @@ func (r *RoomRepository) List(ctx context.Context, limit, offset int) ([]*models
 	var rooms []*models.Room
 	for rows.Next() {
 		room := &models.Room{}
-		err := rows.Scan(&room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan room: %w", err)
 		}
@@ -153,7 +160,7 @@ func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*m
 
 	// Get all users assigned to this room
 	query := `
-		SELECT u.id, u.email, u.name, u.created_at, u.updated_at
+		SELECT u.*
 		FROM users u
 		INNER JOIN user_rooms ur ON u.id = ur.user_id
 		WHERE ur.room_id = ?
@@ -169,7 +176,7 @@ func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*m
 	var users []*models.User
 	for rows.Next() {
 		user := &models.User{}
-		err := rows.Scan(&user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+		err := scanUser(rows, &user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
@@ -260,7 +267,7 @@ func (r *RoomRepository) RemoveUserFromAllRooms(ctx context.Context, userID int6
 // GetUserRooms retrieves all rooms assigned to a user
 func (r *RoomRepository) GetUserRooms(ctx context.Context, userID int64) ([]*models.Room, error) {
 	query := `
-		SELECT r.id, r.name, r.description, r.capacity, r.created_at, r.updated_at
+		SELECT r.*
 		FROM rooms r
 		INNER JOIN user_rooms ur ON r.id = ur.room_id
 		WHERE ur.user_id = ?
@@ -276,7 +283,7 @@ func (r *RoomRepository) GetUserRooms(ctx context.Context, userID int64) ([]*mod
 	var rooms []*models.Room
 	for rows.Next() {
 		room := &models.Room{}
-		err := rows.Scan(&room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan room: %w", err)
 		}

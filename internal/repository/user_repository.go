@@ -24,38 +24,45 @@ func (r *UserRepository) Create(ctx context.Context, req *models.CreateUserReque
 	query := `
 		INSERT INTO users (email, name, created_at, updated_at)
 		VALUES (?, ?, ?, ?)
-		RETURNING id, email, name, created_at, updated_at
 	`
 
 	now := time.Now()
-	row := r.db.QueryRowContext(ctx, query, req.Email, req.Name, now, now)
-
-	user := &models.User{}
-	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+	result, err := r.db.ExecContext(ctx, query, req.Email, req.Name, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	return user, nil
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last insert id: %w", err)
+	}
+
+	// Fetch the created user
+	return r.GetByID(ctx, id)
 }
 
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, error) {
 	query := `
-		SELECT id, email, name, created_at, updated_at
+		SELECT *
 		FROM users
 		WHERE id = ?
 	`
 
-	row := r.db.QueryRowContext(ctx, query, id)
+	rows, err := r.db.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, fmt.Errorf("user not found")
+	}
 
 	user := &models.User{}
-	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+	err = scanUser(rows, &user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
-		}
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
 
 	return user, nil
@@ -64,20 +71,25 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 // GetByEmail retrieves a user by email
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, email, name, created_at, updated_at
+		SELECT *
 		FROM users
 		WHERE email = ?
 	`
 
-	row := r.db.QueryRowContext(ctx, query, email)
+	rows, err := r.db.QueryContext(ctx, query, email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, fmt.Errorf("user not found")
+	}
 
 	user := &models.User{}
-	err := row.Scan(&user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+	err = scanUser(rows, &user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
-		}
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
 
 	return user, nil
@@ -86,7 +98,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 // List retrieves all users with pagination
 func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models.User, error) {
 	query := `
-		SELECT id, email, name, created_at, updated_at
+		SELECT *
 		FROM users
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
@@ -101,7 +113,7 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models
 	var users []*models.User
 	for rows.Next() {
 		user := &models.User{}
-		err := rows.Scan(&user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+		err := scanUser(rows, &user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
