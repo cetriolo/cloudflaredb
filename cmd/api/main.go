@@ -35,22 +35,28 @@ func main() {
 
 	log.Println("Database connection established")
 
-	// Run migrations
+	// Run migrations from files
 	ctx := context.Background()
-	if err := db.Migrate(ctx); err != nil {
+	if err := db.MigrateFromFiles(ctx); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
 	log.Println("Database migrations completed")
 
-	// Initialize repository
+	// Initialize repositories
 	userRepo := repository.NewUserRepository(db.DB)
+	roomRepo := repository.NewRoomRepository(db.DB)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userRepo)
+	roomHandler := handlers.NewRoomHandler(roomRepo)
 
 	// Setup HTTP router
 	mux := http.NewServeMux()
+
+	// Serve static files (API testing page)
+	fs := http.FileServer(http.Dir("web/static"))
+	mux.Handle("/", fs)
 
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +84,15 @@ func main() {
 
 		// Extract ID from path
 		path := strings.TrimPrefix(r.URL.Path, "/users/")
+		parts := strings.Split(path, "/")
+
+		// Check for /users/{id}/rooms
+		if len(parts) >= 2 && parts[1] == "rooms" {
+			roomHandler.GetUserRooms(w, r)
+			return
+		}
+
+		// Regular user endpoints /users/{id}
 		if strings.Contains(path, "/") {
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
@@ -95,6 +110,71 @@ func main() {
 		}
 	})
 
+	// Room endpoints
+	mux.HandleFunc("/rooms", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			roomHandler.ListRooms(w, r)
+		case http.MethodPost:
+			roomHandler.CreateRoom(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/rooms/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/rooms/" {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+
+		// Extract path parts
+		path := strings.TrimPrefix(r.URL.Path, "/rooms/")
+		parts := strings.Split(path, "/")
+
+		// /rooms/{id}/users - Get users in room or assign user to room
+		if len(parts) >= 2 && parts[1] == "users" {
+			if len(parts) == 2 {
+				// /rooms/{id}/users
+				switch r.Method {
+				case http.MethodGet:
+					roomHandler.GetRoomUsers(w, r)
+				case http.MethodPost:
+					roomHandler.AssignUserToRoom(w, r)
+				default:
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+			} else if len(parts) == 3 {
+				// /rooms/{id}/users/{userId}
+				if r.Method == http.MethodDelete {
+					roomHandler.RemoveUserFromRoom(w, r)
+				} else {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+			} else {
+				http.Error(w, "Not found", http.StatusNotFound)
+			}
+			return
+		}
+
+		// Regular room endpoints /rooms/{id}
+		if strings.Contains(path, "/") {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			roomHandler.GetRoom(w, r)
+		case http.MethodPut:
+			roomHandler.UpdateRoom(w, r)
+		case http.MethodDelete:
+			roomHandler.DeleteRoom(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	// Create server
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -107,6 +187,8 @@ func main() {
 	// Start server in a goroutine
 	go func() {
 		log.Printf("Server starting on port %s", cfg.Port)
+		log.Printf("API Tester available at: http://localhost:%s", cfg.Port)
+		log.Printf("API endpoints available at: http://localhost:%s/users", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed to start: %v", err)
 		}

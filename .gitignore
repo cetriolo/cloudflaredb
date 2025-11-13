@@ -29,6 +29,7 @@ vendor/
 *.db-shm
 *.db-wal
 data/
+backups/
 
 # IDE specific files
 .idea/

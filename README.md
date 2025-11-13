@@ -4,15 +4,19 @@ A production-ready Go REST API application using Cloudflare D1 database with SQL
 
 ## Features
 
-- RESTful API for user management
-- Cloudflare D1 integration for production
-- SQLite for local development
-- Clean architecture with repository pattern
-- Comprehensive unit and integration tests
-- Docker support
-- GitHub Actions CI/CD pipeline
-- Graceful shutdown
-- Health check endpoint
+- 🌐 **Interactive API Testing Page** - Built-in web interface for testing all endpoints
+- 🔄 **RESTful API** - Full CRUD operations for users and rooms
+- 🏢 **Room Management** - Complete room system with many-to-many user assignments
+- 🔗 **Many-to-Many Relationships** - Users can be in multiple rooms, rooms can have multiple users
+- ☁️ **Cloudflare D1 Integration** - Production-ready cloud database support
+- 💾 **SQLite for Local Development** - No setup required for local testing
+- 🏗️ **Clean Architecture** - Repository pattern with clear separation of concerns
+- 🧪 **Comprehensive Tests** - Unit and integration tests with >80% coverage
+- 🐳 **Docker Support** - Containerized deployment ready
+- 🔄 **Database Migrations** - Automated schema management with versioned SQL files
+- 🚀 **GitHub Actions CI/CD** - Automated testing, linting, and building
+- 🛡️ **Graceful Shutdown** - Proper connection cleanup and signal handling
+- ❤️ **Health Check Endpoint** - Monitor application status
 
 ## Prerequisites
 
@@ -31,7 +35,8 @@ A production-ready Go REST API application using Cloudflare D1 database with SQL
 │   ├── config/
 │   │   └── config.go            # Configuration management
 │   ├── database/
-│   │   ├── database.go          # Database connection and migrations
+│   │   ├── database.go          # Database connection
+│   │   ├── migrations.go        # Migration runner
 │   │   └── database_test.go     # Database tests
 │   ├── handlers/
 │   │   ├── user_handler.go      # HTTP handlers
@@ -41,6 +46,19 @@ A production-ready Go REST API application using Cloudflare D1 database with SQL
 │   └── repository/
 │       ├── user_repository.go      # Data access layer
 │       └── user_repository_test.go # Repository tests
+├── migrations/
+│   ├── 001_create_users_table.sql  # Database migrations
+│   └── README.md                    # Migration guide
+├── scripts/
+│   ├── run-migrations.sh        # Migration runner script
+│   └── create-migration.sh      # Migration generator script
+├── web/
+│   └── static/
+│       └── index.html           # Interactive API testing page
+├── docs/
+│   ├── DATABASE_SETUP.md        # Database setup guide
+│   ├── TROUBLESHOOTING.md       # Troubleshooting guide
+│   └── API_EXAMPLES.md          # API usage examples
 ├── .github/
 │   └── workflows/
 │       └── ci.yml               # GitHub Actions workflow
@@ -89,6 +107,15 @@ make run
 ```
 
 The API will be available at `http://localhost:8080`.
+
+5. **Test the API**
+
+Open your browser and navigate to:
+```
+http://localhost:8080
+```
+
+You'll see an interactive API testing page where you can test all endpoints directly from your browser!
 
 ### Using Docker
 
@@ -141,6 +168,40 @@ CLOUDFLARE_ACCOUNT_ID=your_account_id
 CLOUDFLARE_API_TOKEN=your_api_token
 CLOUDFLARE_DB_NAME=your_database_name
 ```
+
+## API Testing Page
+
+The application includes an interactive web interface for testing all API endpoints.
+
+### Access the Testing Page
+
+Once the server is running, open your browser and navigate to:
+
+```
+http://localhost:8080
+```
+
+### Features
+
+- **Visual Interface**: Clean, modern UI with color-coded HTTP methods
+- **Real-time Testing**: Test all endpoints directly from your browser
+- **Response Viewer**: See formatted JSON responses with syntax highlighting
+- **Status Indicators**: Visual feedback for success/error responses
+- **Form Validation**: Built-in validation for required fields
+- **Auto Health Check**: Automatically checks API health on page load
+- **No External Dependencies**: Pure HTML/CSS/JavaScript
+
+### Available Test Actions
+
+The testing page provides forms for:
+- Health check
+- Create user
+- Get user by ID
+- List users (with pagination)
+- Update user
+- Delete user (with confirmation)
+
+All responses are displayed in a formatted console-style viewer with timestamps and status codes.
 
 ## API Endpoints
 
@@ -255,6 +316,56 @@ DELETE /users/{id}
 
 **Response:** `204 No Content`
 
+### Room Management
+
+The API includes complete room management with many-to-many user-room relationships.
+
+#### Create Room
+
+```
+POST /rooms
+Content-Type: application/json
+
+{
+  "name": "Conference Room A",
+  "description": "Large meeting room",
+  "capacity": 20
+}
+```
+
+**Response:** `201 Created`
+
+#### Get Room / List Rooms / Update Room / Delete Room
+
+Similar patterns to User endpoints. See [Room API Documentation](docs/ROOM_API.md) for complete reference.
+
+#### User-Room Relationships
+
+```
+POST   /rooms/{id}/users        # Assign user to room
+GET    /rooms/{id}/users        # Get all users in room
+DELETE /rooms/{roomId}/users/{userId}  # Remove user from room
+GET    /users/{id}/rooms        # Get all rooms for user
+```
+
+**Example:** Assign user to room
+```
+POST /rooms/1/users
+Content-Type: application/json
+
+{
+  "user_id": 1
+}
+```
+
+**Key Features:**
+- Users can be in multiple rooms
+- Rooms can have multiple users
+- Prevents duplicate assignments
+- Cascade deletion (deleting room removes assignments)
+
+For complete Room API documentation, see [docs/ROOM_API.md](docs/ROOM_API.md).
+
 ## Testing
 
 ### Run all tests
@@ -322,42 +433,80 @@ CLOUDFLARE_DB_NAME=cloudflaredb
 
 5. **Run migrations**
 
-The application automatically runs migrations on startup. The database schema is created in `internal/database/database.go`.
+The application automatically runs migrations from the `migrations/` directory on startup.
 
-### Manual Migrations
+## Database Migrations
 
-If you need to run migrations manually using Wrangler:
+### Automatic Migrations
+
+Migrations are automatically applied when the application starts. Migration SQL files are stored in the `migrations/` directory and executed in order.
+
+### Manual Migration Management
+
+#### Create a New Migration
 
 ```bash
-# Create a migration file
-npx wrangler d1 execute cloudflaredb --remote --command "
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT NOT NULL UNIQUE,
-  name TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-"
+# Using the helper script
+make create-migration
+
+# Or manually
+./scripts/create-migration.sh "add user role column"
 ```
+
+This creates a new numbered migration file in `migrations/`.
+
+#### Run Migrations Manually
+
+**Local D1 database:**
+```bash
+make migrate-local
+# Or: ./scripts/run-migrations.sh local
+```
+
+**Remote D1 database (production):**
+```bash
+make migrate-remote
+# Or: ./scripts/run-migrations.sh remote
+```
+
+**With Wrangler directly:**
+```bash
+# Single migration
+npx wrangler d1 execute cloudflaredb --remote --file=migrations/001_create_users_table.sql
+
+# All migrations
+for file in migrations/*.sql; do
+  npx wrangler d1 execute cloudflaredb --remote --file="$file"
+done
+```
+
+### Migration Best Practices
+
+- Always use `IF NOT EXISTS` for idempotency
+- Test locally before production
+- Create backups before running migrations
+- One logical change per migration
+- See [migrations/README.md](migrations/README.md) for detailed guide
 
 ## Development
 
 ### Available Make Commands
 
 ```bash
-make help          # Display all available commands
-make build         # Build the application
-make run           # Run the application
-make test          # Run tests
-make test-coverage # Run tests with coverage report
-make clean         # Clean build artifacts
-make docker-build  # Build Docker image
-make docker-run    # Run with Docker Compose
-make docker-down   # Stop Docker Compose
-make lint          # Run linter
-make deps          # Download and tidy dependencies
+make help            # Display all available commands
+make build           # Build the application
+make run             # Run the application
+make test            # Run tests
+make test-coverage   # Run tests with coverage report
+make clean           # Clean build artifacts
+make docker-build    # Build Docker image
+make docker-run      # Run with Docker Compose
+make docker-down     # Stop Docker Compose
+make lint            # Run linter
+make deps            # Download and tidy dependencies
+make create-migration # Create a new migration file
+make migrate-local   # Run migrations on local D1 database
+make migrate-remote  # Run migrations on remote D1 database (production)
 ```
 
 ### Code Structure Best Practices
