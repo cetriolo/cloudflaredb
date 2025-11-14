@@ -1,7 +1,44 @@
 version: '3.8'
 
 services:
+  # Application service configured to use Cloudflare D1
   app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Application settings
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - PORT=${PORT:-8080}
+
+      # Cloudflare D1 Database Configuration
+      # The cfd1 driver connects to D1 via Cloudflare's REST API
+      - DATABASE_DRIVER=cfd1
+      - DATABASE_DSN=d1://${CLOUDFLARE_ACCOUNT_ID}:${CLOUDFLARE_API_TOKEN}@${CLOUDFLARE_DB_NAME}
+
+      # Alternative: For local development with SQLite, use:
+      # - DATABASE_DRIVER=sqlite3
+      # - DATABASE_DSN=/data/local.db
+
+    # Volumes (only needed for SQLite local dev)
+    # volumes:
+    #   - ./data:/data
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Local development profile using SQLite instead of D1
+# Usage: docker-compose --profile local up
+  app-local:
+    profiles: ["local"]
     build:
       context: .
       dockerfile: Dockerfile
