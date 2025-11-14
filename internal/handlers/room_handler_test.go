@@ -370,8 +370,16 @@ func TestRoomHandler_GetRoomUsers(t *testing.T) {
 	})
 
 	// Assign users to room
-	roomRepo.AssignUserToRoom(ctx, user1.ID, room.ID)
-	roomRepo.AssignUserToRoom(ctx, user2.ID, room.ID)
+	err := roomRepo.AssignUserToRoom(ctx, user1.ID, room.ID)
+	if err != nil {
+		t.Fatalf("Failed to assign user1 to room: %v", err)
+		return
+	}
+	err = roomRepo.AssignUserToRoom(ctx, user2.ID, room.ID)
+	if err != nil {
+		t.Fatalf("Failed to assign user2 to room: %v", err)
+		return
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/rooms/1/users", nil)
 	w := httptest.NewRecorder()
