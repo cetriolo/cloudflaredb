@@ -27,20 +27,32 @@ func setupTestDBForRooms(t *testing.T) *sql.DB {
 	schema := `
 	CREATE TABLE users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		email TEXT NOT NULL UNIQUE,
-		name TEXT NOT NULL,
+		external_id TEXT NOT NULL UNIQUE,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
+	CREATE INDEX idx_users_external_id ON users(external_id);
+
+	CREATE TABLE room_types (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		size TEXT NOT NULL,
+		style TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX idx_room_types_size ON room_types(size);
+	CREATE INDEX idx_room_types_style ON room_types(style);
 
 	CREATE TABLE rooms (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		description TEXT NOT NULL DEFAULT '',
-		capacity INTEGER NOT NULL DEFAULT 1,
+		room_type_id INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (room_type_id) REFERENCES room_types(id) ON DELETE SET NULL
 	);
+	CREATE INDEX idx_rooms_room_type_id ON rooms(room_type_id);
 
 	CREATE TABLE user_rooms (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,7 +74,12 @@ func setupTestDBForRooms(t *testing.T) *sql.DB {
 
 func TestRoomHandler_CreateRoom(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewRoomRepository(db)
 	handler := NewRoomHandler(repo)
@@ -78,7 +95,6 @@ func TestRoomHandler_CreateRoom(t *testing.T) {
 			requestBody: models.CreateRoomRequest{
 				Name:        "Conference Room",
 				Description: "Large meeting room",
-				Capacity:    20,
 			},
 			expectedStatus: http.StatusCreated,
 			checkResponse: func(t *testing.T, body []byte) {
@@ -94,16 +110,7 @@ func TestRoomHandler_CreateRoom(t *testing.T) {
 		{
 			name: "missing name",
 			requestBody: models.CreateRoomRequest{
-				Capacity: 10,
-			},
-			expectedStatus: http.StatusBadRequest,
-			checkResponse:  nil,
-		},
-		{
-			name: "invalid capacity",
-			requestBody: models.CreateRoomRequest{
-				Name:     "Test Room",
-				Capacity: 0,
+				Description: "Test",
 			},
 			expectedStatus: http.StatusBadRequest,
 			checkResponse:  nil,
@@ -142,7 +149,12 @@ func TestRoomHandler_CreateRoom(t *testing.T) {
 
 func TestRoomHandler_GetRoom(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewRoomRepository(db)
 	handler := NewRoomHandler(repo)
@@ -152,7 +164,6 @@ func TestRoomHandler_GetRoom(t *testing.T) {
 	room, err := repo.Create(ctx, &models.CreateRoomRequest{
 		Name:        "Test Room",
 		Description: "Test Description",
-		Capacity:    10,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test room: %v", err)
@@ -206,7 +217,12 @@ func TestRoomHandler_GetRoom(t *testing.T) {
 
 func TestRoomHandler_ListRooms(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewRoomRepository(db)
 	handler := NewRoomHandler(repo)
@@ -215,8 +231,8 @@ func TestRoomHandler_ListRooms(t *testing.T) {
 	ctx := context.Background()
 	for i := 1; i <= 5; i++ {
 		_, err := repo.Create(ctx, &models.CreateRoomRequest{
-			Name:     "Room " + string(rune(i)),
-			Capacity: i * 10,
+			Name:        "Room " + string(rune('0'+i)),
+			Description: "Test room description",
 		})
 		if err != nil {
 			t.Fatalf("Failed to create test room: %v", err)
@@ -275,7 +291,12 @@ func TestRoomHandler_ListRooms(t *testing.T) {
 
 func TestRoomHandler_AssignUserToRoom(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	roomRepo := repository.NewRoomRepository(db)
 	userRepo := repository.NewUserRepository(db)
@@ -285,14 +306,13 @@ func TestRoomHandler_AssignUserToRoom(t *testing.T) {
 
 	// Create test user
 	user, _ := userRepo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 
 	// Create test room
 	room, _ := roomRepo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Test Room",
-		Capacity: 10,
+		Name:        "Test Room",
+		Description: "Test Description",
 	})
 
 	requestBody := map[string]int64{
@@ -322,7 +342,12 @@ func TestRoomHandler_AssignUserToRoom(t *testing.T) {
 
 func TestRoomHandler_GetRoomUsers(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	roomRepo := repository.NewRoomRepository(db)
 	userRepo := repository.NewUserRepository(db)
@@ -332,23 +357,29 @@ func TestRoomHandler_GetRoomUsers(t *testing.T) {
 
 	// Create test room
 	room, _ := roomRepo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Test Room",
-		Capacity: 10,
+		Name:        "Test Room",
+		Description: "Test Description",
 	})
 
 	// Create test users
 	user1, _ := userRepo.Create(ctx, &models.CreateUserRequest{
-		Email: "user1@example.com",
-		Name:  "User 1",
+		ExternalID: "user1",
 	})
 	user2, _ := userRepo.Create(ctx, &models.CreateUserRequest{
-		Email: "user2@example.com",
-		Name:  "User 2",
+		ExternalID: "user2",
 	})
 
 	// Assign users to room
-	roomRepo.AssignUserToRoom(ctx, user1.ID, room.ID)
-	roomRepo.AssignUserToRoom(ctx, user2.ID, room.ID)
+	err := roomRepo.AssignUserToRoom(ctx, user1.ID, room.ID)
+	if err != nil {
+		t.Fatalf("Failed to assign user1 to room: %v", err)
+		return
+	}
+	err = roomRepo.AssignUserToRoom(ctx, user2.ID, room.ID)
+	if err != nil {
+		t.Fatalf("Failed to assign user2 to room: %v", err)
+		return
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/rooms/1/users", nil)
 	w := httptest.NewRecorder()

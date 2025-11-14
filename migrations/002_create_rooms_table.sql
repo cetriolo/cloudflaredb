@@ -7,16 +7,17 @@ CREATE TABLE IF NOT EXISTS rooms (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    capacity INTEGER NOT NULL DEFAULT 1,
+    room_type_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (room_type_id) REFERENCES room_types(id) ON DELETE SET NULL
 );
 
 -- Create index on room name for faster lookups
 CREATE INDEX IF NOT EXISTS idx_rooms_name ON rooms(name);
 
--- Create index on capacity for filtering
-CREATE INDEX IF NOT EXISTS idx_rooms_capacity ON rooms(capacity);
+-- Create index on room_type_id for filtering and joins
+CREATE INDEX IF NOT EXISTS idx_rooms_room_type_id ON rooms(room_type_id);
 
 -- Create user_rooms junction table for many-to-many relationship
 CREATE TABLE IF NOT EXISTS user_rooms (

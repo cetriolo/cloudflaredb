@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"cloudflaredb/internal/models"
@@ -19,15 +20,17 @@ func NewRoomRepository(db *sql.DB) *RoomRepository {
 	return &RoomRepository{db: db}
 }
 
-// Create inserts a new room into the database
+// Create inserts a new room into the database.
+// It automatically sets created_at and updated_at timestamps.
+// Returns the created room with its generated ID, or an error if creation fails.
 func (r *RoomRepository) Create(ctx context.Context, req *models.CreateRoomRequest) (*models.Room, error) {
 	query := `
-		INSERT INTO rooms (name, description, capacity, created_at, updated_at)
+		INSERT INTO rooms (name, description, room_type_id, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)
 	`
 
 	now := time.Now()
-	result, err := r.db.ExecContext(ctx, query, req.Name, req.Description, req.Capacity, now, now)
+	result, err := r.db.ExecContext(ctx, query, req.Name, req.Description, req.RoomTypeID, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create room: %w", err)
 	}
@@ -41,10 +44,12 @@ func (r *RoomRepository) Create(ctx context.Context, req *models.CreateRoomReque
 	return r.GetByID(ctx, id)
 }
 
-// GetByID retrieves a room by ID
+// GetByID retrieves a single room by its ID.
+// Returns an error with message "room not found" if the room doesn't exist.
+// Uses the scanRoom helper to handle database type conversions.
 func (r *RoomRepository) GetByID(ctx context.Context, id int64) (*models.Room, error) {
 	query := `
-		SELECT *
+		SELECT id, name, description, room_type_id, created_at, updated_at
 		FROM rooms
 		WHERE id = ?
 	`
@@ -53,14 +58,19 @@ func (r *RoomRepository) GetByID(ctx context.Context, id int64) (*models.Room, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to query room: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	if !rows.Next() {
 		return nil, fmt.Errorf("room not found")
 	}
 
 	room := &models.Room{}
-	err = scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+	err = scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.RoomTypeID, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan room: %w", err)
 	}
@@ -68,10 +78,16 @@ func (r *RoomRepository) GetByID(ctx context.Context, id int64) (*models.Room, e
 	return room, nil
 }
 
-// List retrieves all rooms with pagination
+// List retrieves all rooms with pagination support.
+// Results are ordered by created_at in descending order (newest first).
+// Parameters:
+//   - limit: maximum number of rooms to return
+//   - offset: number of rooms to skip before starting to return results
+//
+// Returns an empty slice if no rooms are found.
 func (r *RoomRepository) List(ctx context.Context, limit, offset int) ([]*models.Room, error) {
 	query := `
-		SELECT *
+		SELECT id, name, description, room_type_id, created_at, updated_at
 		FROM rooms
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
@@ -81,12 +97,17 @@ func (r *RoomRepository) List(ctx context.Context, limit, offset int) ([]*models
 	if err != nil {
 		return nil, fmt.Errorf("failed to list rooms: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	var rooms []*models.Room
 	for rows.Next() {
 		room := &models.Room{}
-		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.RoomTypeID, &room.CreatedAt, &room.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan room: %w", err)
 		}
@@ -100,19 +121,23 @@ func (r *RoomRepository) List(ctx context.Context, limit, offset int) ([]*models
 	return rooms, nil
 }
 
-// Update updates a room's information
+// Update updates a room's information.
+// Only non-empty/non-zero fields in the request will be updated (partial updates supported).
+// The updated_at timestamp is automatically updated to the current time.
+// For room_type_id: only updates if the new value is not nil.
+// Returns the updated room object or an error if the room is not found.
 func (r *RoomRepository) Update(ctx context.Context, id int64, req *models.UpdateRoomRequest) (*models.Room, error) {
 	query := `
 		UPDATE rooms
 		SET name = COALESCE(NULLIF(?, ''), name),
 		    description = COALESCE(NULLIF(?, ''), description),
-		    capacity = CASE WHEN ? > 0 THEN ? ELSE capacity END,
+		    room_type_id = CASE WHEN ? IS NOT NULL THEN ? ELSE room_type_id END,
 		    updated_at = ?
 		WHERE id = ?
 	`
 
 	now := time.Now()
-	result, err := r.db.ExecContext(ctx, query, req.Name, req.Description, req.Capacity, req.Capacity, now, id)
+	result, err := r.db.ExecContext(ctx, query, req.Name, req.Description, req.RoomTypeID, req.RoomTypeID, now, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update room: %w", err)
 	}
@@ -129,7 +154,10 @@ func (r *RoomRepository) Update(ctx context.Context, id int64, req *models.Updat
 	return r.GetByID(ctx, id)
 }
 
-// Delete removes a room from the database
+// Delete permanently removes a room from the database.
+// Returns an error with message "room not found" if the room doesn't exist.
+// Note: This does not cascade delete related records like user_rooms.
+// Consider handling related records before calling this method.
 func (r *RoomRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM rooms WHERE id = ?`
 
@@ -150,7 +178,11 @@ func (r *RoomRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetRoomWithUsers retrieves a room with all its assigned users
+// GetRoomWithUsers retrieves a room along with all users assigned to it.
+// Returns a RoomWithUsers object containing the room details and a list of users.
+// Users are ordered by their external_id.
+// Returns an error if the room is not found.
+// The Users slice will be empty if no users are assigned to the room.
 func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*models.RoomWithUsers, error) {
 	// Get room details
 	room, err := r.GetByID(ctx, roomID)
@@ -160,23 +192,28 @@ func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*m
 
 	// Get all users assigned to this room
 	query := `
-		SELECT u.*
+		SELECT u.id, u.external_id, u.created_at, u.updated_at
 		FROM users u
 		INNER JOIN user_rooms ur ON u.id = ur.user_id
 		WHERE ur.room_id = ?
-		ORDER BY u.name
+		ORDER BY u.external_id
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, roomID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get room users: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	var users []*models.User
 	for rows.Next() {
 		user := &models.User{}
-		err := scanUser(rows, &user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+		err := scanUser(rows, &user.ID, &user.ExternalID, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
@@ -193,14 +230,30 @@ func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*m
 	}, nil
 }
 
-// AssignUserToRoom assigns a user to a room (user can have multiple rooms)
+// AssignUserToRoom creates a many-to-many relationship between a user and a room.
+// A user can be assigned to multiple rooms, and a room can have multiple users.
+// Returns an error if the user is already assigned to this room.
+// The created_at timestamp is automatically set for the relationship.
 func (r *RoomRepository) AssignUserToRoom(ctx context.Context, userID, roomID int64) error {
 	// Check if assignment already exists
 	checkQuery := `SELECT COUNT(*) FROM user_rooms WHERE user_id = ? AND room_id = ?`
-	var count int
-	err := r.db.QueryRowContext(ctx, checkQuery, userID, roomID).Scan(&count)
+	var countResult interface{}
+	err := r.db.QueryRowContext(ctx, checkQuery, userID, roomID).Scan(&countResult)
 	if err != nil {
 		return fmt.Errorf("failed to check existing assignment: %w", err)
+	}
+
+	// Handle both int64 (SQLite3) and float64 (D1) count types
+	var count int64
+	switch v := countResult.(type) {
+	case int64:
+		count = v
+	case float64:
+		count = int64(v)
+	case int:
+		count = int64(v)
+	default:
+		return fmt.Errorf("unexpected count type: %T", countResult)
 	}
 
 	if count > 0 {
@@ -222,7 +275,9 @@ func (r *RoomRepository) AssignUserToRoom(ctx context.Context, userID, roomID in
 	return nil
 }
 
-// RemoveUserFromRoom removes a user from a specific room
+// RemoveUserFromRoom deletes the many-to-many relationship between a user and a room.
+// Returns an error with message "user not assigned to this room" if the relationship doesn't exist.
+// Only removes the relationship; the user and room records remain in the database.
 func (r *RoomRepository) RemoveUserFromRoom(ctx context.Context, userID, roomID int64) error {
 	query := `DELETE FROM user_rooms WHERE user_id = ? AND room_id = ?`
 
@@ -243,7 +298,9 @@ func (r *RoomRepository) RemoveUserFromRoom(ctx context.Context, userID, roomID 
 	return nil
 }
 
-// RemoveUserFromAllRooms removes a user from all their assigned rooms
+// RemoveUserFromAllRooms deletes all room assignments for a specific user.
+// Useful when deleting a user to clean up all their room relationships.
+// Returns an error with message "user not assigned to any rooms" if the user has no room assignments.
 func (r *RoomRepository) RemoveUserFromAllRooms(ctx context.Context, userID int64) error {
 	query := `DELETE FROM user_rooms WHERE user_id = ?`
 
@@ -264,10 +321,13 @@ func (r *RoomRepository) RemoveUserFromAllRooms(ctx context.Context, userID int6
 	return nil
 }
 
-// GetUserRooms retrieves all rooms assigned to a user
+// GetUserRooms retrieves all rooms that a specific user is assigned to.
+// Results are ordered alphabetically by room name.
+// Returns an empty slice if the user is not assigned to any rooms.
+// Performs an INNER JOIN on the user_rooms table to get the relationship.
 func (r *RoomRepository) GetUserRooms(ctx context.Context, userID int64) ([]*models.Room, error) {
 	query := `
-		SELECT r.*
+		SELECT r.id, r.name, r.description, r.room_type_id, r.created_at, r.updated_at
 		FROM rooms r
 		INNER JOIN user_rooms ur ON r.id = ur.room_id
 		WHERE ur.user_id = ?
@@ -278,12 +338,17 @@ func (r *RoomRepository) GetUserRooms(ctx context.Context, userID int64) ([]*mod
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user rooms: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	var rooms []*models.Room
 	for rows.Next() {
 		room := &models.Room{}
-		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.RoomTypeID, &room.CreatedAt, &room.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan room: %w", err)
 		}

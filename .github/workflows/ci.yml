@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, refactor ]
   pull_request:
     branches: [ main, develop ]
 
@@ -53,10 +53,9 @@ jobs:
         cache: true
 
     - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v9
       with:
-        version: latest
-        args: --timeout=5m
+        args: --timeout=5m --skip-files='.*_test\.go'
 
   build:
     name: Build

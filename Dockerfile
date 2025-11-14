@@ -2,6 +2,7 @@
 FROM golang:1.25.1-alpine AS builder
 
 # Install build dependencies
+# CGO is required for SQLite support (optional, for local dev)
 RUN apk add --no-cache gcc musl-dev sqlite-dev
 
 WORKDIR /app
@@ -13,13 +14,16 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application with CGO enabled for SQLite compatibility
+# The binary supports both SQLite (local) and D1 (via HTTP API)
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o api cmd/api/main.go
 
 # Final stage
 FROM alpine:latest
 
 # Install runtime dependencies
+# - ca-certificates: Required for HTTPS connections to Cloudflare D1 API
+# - sqlite-libs: Optional, for local SQLite support
 RUN apk --no-cache add ca-certificates sqlite-libs
 
 WORKDIR /root/

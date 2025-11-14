@@ -23,12 +23,11 @@ func setupTestDB(t *testing.T) *sql.DB {
 	schema := `
 	CREATE TABLE users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		email TEXT NOT NULL UNIQUE,
-		name TEXT NOT NULL,
+		external_id TEXT NOT NULL UNIQUE,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
-	CREATE INDEX idx_users_email ON users(email);
+	CREATE INDEX idx_users_external_id ON users(external_id);
 	`
 
 	if _, err := db.Exec(schema); err != nil {
@@ -40,7 +39,12 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestUserRepository_Create(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -53,16 +57,14 @@ func TestUserRepository_Create(t *testing.T) {
 		{
 			name: "successful creation",
 			req: &models.CreateUserRequest{
-				Email: "test@example.com",
-				Name:  "Test User",
+				ExternalID: "user123",
 			},
 			wantErr: false,
 		},
 		{
-			name: "duplicate email",
+			name: "duplicate external_id",
 			req: &models.CreateUserRequest{
-				Email: "test@example.com",
-				Name:  "Another User",
+				ExternalID: "user123",
 			},
 			wantErr: true,
 		},
@@ -80,11 +82,8 @@ func TestUserRepository_Create(t *testing.T) {
 				if user.ID == 0 {
 					t.Error("Expected user ID to be set")
 				}
-				if user.Email != tt.req.Email {
-					t.Errorf("Expected email %s, got %s", tt.req.Email, user.Email)
-				}
-				if user.Name != tt.req.Name {
-					t.Errorf("Expected name %s, got %s", tt.req.Name, user.Name)
+				if user.ExternalID != tt.req.ExternalID {
+					t.Errorf("Expected external_id %s, got %s", tt.req.ExternalID, user.ExternalID)
 				}
 				if user.CreatedAt.IsZero() {
 					t.Error("Expected created_at to be set")
@@ -96,15 +95,19 @@ func TestUserRepository_Create(t *testing.T) {
 
 func TestUserRepository_GetByID(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
 
 	// Create a test user
 	user, err := repo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
@@ -139,58 +142,62 @@ func TestUserRepository_GetByID(t *testing.T) {
 				if got.ID != user.ID {
 					t.Errorf("Expected ID %d, got %d", user.ID, got.ID)
 				}
-				if got.Email != user.Email {
-					t.Errorf("Expected email %s, got %s", user.Email, got.Email)
+				if got.ExternalID != user.ExternalID {
+					t.Errorf("Expected external_id %s, got %s", user.ExternalID, got.ExternalID)
 				}
 			}
 		})
 	}
 }
 
-func TestUserRepository_GetByEmail(t *testing.T) {
+func TestUserRepository_GetByExternalID(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
 
 	// Create a test user
 	user, err := repo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
 
 	tests := []struct {
-		name    string
-		email   string
-		wantErr bool
+		name       string
+		externalID string
+		wantErr    bool
 	}{
 		{
-			name:    "existing email",
-			email:   user.Email,
-			wantErr: false,
+			name:       "existing external_id",
+			externalID: user.ExternalID,
+			wantErr:    false,
 		},
 		{
-			name:    "non-existent email",
-			email:   "nonexistent@example.com",
-			wantErr: true,
+			name:       "non-existent external_id",
+			externalID: "nonexistent",
+			wantErr:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := repo.GetByEmail(ctx, tt.email)
+			got, err := repo.GetByExternalID(ctx, tt.externalID)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GetByEmail() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GetByExternalID() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
 			if !tt.wantErr {
-				if got.Email != user.Email {
-					t.Errorf("Expected email %s, got %s", user.Email, got.Email)
+				if got.ExternalID != user.ExternalID {
+					t.Errorf("Expected external_id %s, got %s", user.ExternalID, got.ExternalID)
 				}
 			}
 		})
@@ -199,7 +206,12 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 
 func TestUserRepository_List(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -207,8 +219,7 @@ func TestUserRepository_List(t *testing.T) {
 	// Create test users
 	for i := 1; i <= 5; i++ {
 		_, err := repo.Create(ctx, &models.CreateUserRequest{
-			Email: "test" + string(rune(i)) + "@example.com",
-			Name:  "Test User",
+			ExternalID: "user" + string(rune(i+'0')),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create test user: %v", err)
@@ -258,15 +269,19 @@ func TestUserRepository_List(t *testing.T) {
 
 func TestUserRepository_Update(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
 
 	// Create a test user
 	user, err := repo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
@@ -279,18 +294,10 @@ func TestUserRepository_Update(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "update name",
+			name: "update external_id",
 			id:   user.ID,
 			req: &models.UpdateUserRequest{
-				Name: "Updated Name",
-			},
-			wantErr: false,
-		},
-		{
-			name: "update email",
-			id:   user.ID,
-			req: &models.UpdateUserRequest{
-				Email: "updated@example.com",
+				ExternalID: "updatedUser123",
 			},
 			wantErr: false,
 		},
@@ -298,7 +305,7 @@ func TestUserRepository_Update(t *testing.T) {
 			name: "update non-existent user",
 			id:   9999,
 			req: &models.UpdateUserRequest{
-				Name: "Should Fail",
+				ExternalID: "shouldFail",
 			},
 			wantErr: true,
 		},
@@ -313,11 +320,8 @@ func TestUserRepository_Update(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				if tt.req.Name != "" && updated.Name != tt.req.Name {
-					t.Errorf("Expected name %s, got %s", tt.req.Name, updated.Name)
-				}
-				if tt.req.Email != "" && updated.Email != tt.req.Email {
-					t.Errorf("Expected email %s, got %s", tt.req.Email, updated.Email)
+				if tt.req.ExternalID != "" && updated.ExternalID != tt.req.ExternalID {
+					t.Errorf("Expected external_id %s, got %s", tt.req.ExternalID, updated.ExternalID)
 				}
 			}
 		})
@@ -326,15 +330,19 @@ func TestUserRepository_Update(t *testing.T) {
 
 func TestUserRepository_Delete(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
 
 	// Create a test user
 	user, err := repo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)

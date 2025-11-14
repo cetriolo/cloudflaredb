@@ -6,14 +6,25 @@ import (
 	"time"
 )
 
-// NullableTime is a custom type that can scan both time.Time and string timestamps
-// This is needed because the cfd1 driver returns timestamps as strings
+// NullableTime is a custom type that handles timestamp scanning across different SQL drivers.
+// This type is essential for compatibility with both SQLite and Cloudflare D1:
+//   - SQLite returns timestamps as time.Time objects
+//   - Cloudflare D1 (cfd1 driver) returns timestamps as strings
+//
+// It implements sql.Scanner and driver.Valuer for seamless database integration.
 type NullableTime struct {
-	Time  time.Time
-	Valid bool
+	Time  time.Time // The actual time value
+	Valid bool      // Indicates whether the time value is valid (not NULL)
 }
 
-// Scan implements the sql.Scanner interface
+// Scan implements the sql.Scanner interface for NullableTime.
+// It handles multiple input types:
+//   - nil: sets Valid to false
+//   - time.Time: directly assigns the value
+//   - string: parses using multiple timestamp formats
+//   - []byte: converts to string and parses
+//
+// Returns an error if the value cannot be parsed or is an unsupported type.
 func (nt *NullableTime) Scan(value interface{}) error {
 	if value == nil {
 		nt.Valid = false
@@ -53,7 +64,9 @@ func (nt *NullableTime) Scan(value interface{}) error {
 	}
 }
 
-// Value implements the driver.Valuer interface
+// Value implements the driver.Valuer interface for NullableTime.
+// Returns nil if the time is not valid, otherwise returns the time.Time value.
+// This allows NullableTime to be used in SQL INSERT and UPDATE statements.
 func (nt NullableTime) Value() (driver.Value, error) {
 	if !nt.Valid {
 		return nil, nil
@@ -61,26 +74,18 @@ func (nt NullableTime) Value() (driver.Value, error) {
 	return nt.Time, nil
 }
 
-// ColumnScanner is an interface that can return column names
-type ColumnScanner interface {
-	Scan(dest ...interface{}) error
-	Columns() ([]string, error)
-}
-
-// scanUser is a helper function to scan a user row that handles cfd1 timestamp strings, numeric types, and column ordering bugs
+// scanUser scans a user row from database results using position-based scanning.
+// Handles type differences between SQLite3 (int64) and D1 driver (float64) by scanning
+// integers into float64 and converting to int64.
+//
+// Expected column order: id, external_id, created_at, updated_at
 func scanUser(scanner interface {
 	Scan(dest ...interface{}) error
-}, id *int64, email, name *string, createdAt, updatedAt *time.Time) error {
-	// Try to get column names if available (for *sql.Rows)
-	if colScanner, ok := scanner.(ColumnScanner); ok {
-		return scanUserWithColumns(colScanner, id, email, name, createdAt, updatedAt)
-	}
-
-	// Fallback to position-based scanning for *sql.Row
+}, id *int64, externalID *string, createdAt, updatedAt *time.Time) error {
 	var createdAtNT, updatedAtNT NullableTime
 	var idFloat float64
 
-	err := scanner.Scan(&idFloat, email, name, &createdAtNT, &updatedAtNT)
+	err := scanner.Scan(&idFloat, externalID, &createdAtNT, &updatedAtNT)
 	if err != nil {
 		return err
 	}
@@ -97,74 +102,34 @@ func scanUser(scanner interface {
 	return nil
 }
 
-// scanUserWithColumns scans a user using column names to handle cfd1's column ordering bug
-func scanUserWithColumns(scanner ColumnScanner, id *int64, email, name *string, createdAt, updatedAt *time.Time) error {
-	cols, err := scanner.Columns()
-	if err != nil {
-		return err
-	}
-
-	// Create a map to store values by column name
-	values := make([]interface{}, len(cols))
-	for i := range values {
-		values[i] = new(interface{})
-	}
-
-	err = scanner.Scan(values...)
-	if err != nil {
-		return err
-	}
-
-	// Map values to struct fields based on column names
-	for i, col := range cols {
-		val := *(values[i].(*interface{}))
-		if val == nil {
-			continue
-		}
-
-		switch col {
-		case "id":
-			if f, ok := val.(float64); ok {
-				*id = int64(f)
-			}
-		case "email":
-			if s, ok := val.(string); ok {
-				*email = s
-			}
-		case "name":
-			if s, ok := val.(string); ok {
-				*name = s
-			}
-		case "created_at":
-			*createdAt = parseTimeValue(val)
-		case "updated_at":
-			*updatedAt = parseTimeValue(val)
-		}
-	}
-
-	return nil
-}
-
-// scanRoom is a helper function to scan a room row that handles cfd1 timestamp strings, numeric types, and column ordering bugs
+// scanRoom scans a room row from database results using position-based scanning.
+// Handles type differences between SQLite3 (int64) and D1 driver (float64) by scanning
+// integers into float64 and converting to int64.
+//
+// Expected column order: id, name, description, room_type_id, created_at, updated_at
 func scanRoom(scanner interface {
 	Scan(dest ...interface{}) error
-}, id *int64, name, description *string, capacity *int, createdAt, updatedAt *time.Time) error {
-	// Try to get column names if available (for *sql.Rows)
-	if colScanner, ok := scanner.(ColumnScanner); ok {
-		return scanRoomWithColumns(colScanner, id, name, description, capacity, createdAt, updatedAt)
-	}
-
-	// Fallback to position-based scanning for *sql.Row
+}, id *int64, name, description *string, roomTypeID **int64, createdAt, updatedAt *time.Time) error {
 	var createdAtNT, updatedAtNT NullableTime
-	var idFloat, capacityFloat float64
+	var idFloat float64
+	var roomTypeIDFloat interface{}
 
-	err := scanner.Scan(&idFloat, name, description, &capacityFloat, &createdAtNT, &updatedAtNT)
+	err := scanner.Scan(&idFloat, name, description, &roomTypeIDFloat, &createdAtNT, &updatedAtNT)
 	if err != nil {
 		return err
 	}
 
 	*id = int64(idFloat)
-	*capacity = int(capacityFloat)
+
+	// Handle nullable room_type_id
+	if roomTypeIDFloat != nil {
+		if f, ok := roomTypeIDFloat.(float64); ok {
+			val := int64(f)
+			*roomTypeID = &val
+		} else if i, ok := roomTypeIDFloat.(int64); ok {
+			*roomTypeID = &i
+		}
+	}
 
 	if createdAtNT.Valid {
 		*createdAt = createdAtNT.Time
@@ -176,79 +141,30 @@ func scanRoom(scanner interface {
 	return nil
 }
 
-// scanRoomWithColumns scans a room using column names to handle cfd1's column ordering bug
-func scanRoomWithColumns(scanner ColumnScanner, id *int64, name, description *string, capacity *int, createdAt, updatedAt *time.Time) error {
-	cols, err := scanner.Columns()
+// scanRoomType scans a room type row from database results using position-based scanning.
+// Handles type differences between SQLite3 (int64) and D1 driver (float64) by scanning
+// integers into float64 and converting to int64.
+//
+// Expected column order: id, size, style, created_at, updated_at
+func scanRoomType(scanner interface {
+	Scan(dest ...interface{}) error
+}, id *int64, size, style *string, createdAt, updatedAt *time.Time) error {
+	var createdAtNT, updatedAtNT NullableTime
+	var idFloat float64
+
+	err := scanner.Scan(&idFloat, size, style, &createdAtNT, &updatedAtNT)
 	if err != nil {
 		return err
 	}
 
-	// Create a map to store values by column name
-	values := make([]interface{}, len(cols))
-	for i := range values {
-		values[i] = new(interface{})
+	*id = int64(idFloat)
+
+	if createdAtNT.Valid {
+		*createdAt = createdAtNT.Time
 	}
-
-	err = scanner.Scan(values...)
-	if err != nil {
-		return err
-	}
-
-	// Map values to struct fields based on column names
-	for i, col := range cols {
-		val := *(values[i].(*interface{}))
-		if val == nil {
-			continue
-		}
-
-		switch col {
-		case "id":
-			if f, ok := val.(float64); ok {
-				*id = int64(f)
-			}
-		case "name":
-			if s, ok := val.(string); ok {
-				*name = s
-			}
-		case "description":
-			if s, ok := val.(string); ok {
-				*description = s
-			}
-		case "capacity":
-			if f, ok := val.(float64); ok {
-				*capacity = int(f)
-			}
-		case "created_at":
-			*createdAt = parseTimeValue(val)
-		case "updated_at":
-			*updatedAt = parseTimeValue(val)
-		}
+	if updatedAtNT.Valid {
+		*updatedAt = updatedAtNT.Time
 	}
 
 	return nil
-}
-
-// parseTimeValue parses a time value from various types
-func parseTimeValue(val interface{}) time.Time {
-	switch v := val.(type) {
-	case time.Time:
-		return v
-	case string:
-		// Try parsing common timestamp formats
-		formats := []string{
-			time.RFC3339,
-			time.RFC3339Nano,
-			"2006-01-02 15:04:05",
-			"2006-01-02T15:04:05",
-			"2006-01-02 15:04:05.999999999",
-			"2006-01-02T15:04:05.999999999",
-		}
-
-		for _, format := range formats {
-			if t, err := time.Parse(format, v); err == nil {
-				return t
-			}
-		}
-	}
-	return time.Time{}
 }

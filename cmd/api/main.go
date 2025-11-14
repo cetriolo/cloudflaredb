@@ -17,7 +17,8 @@ import (
 )
 
 func main() {
-	// Load configuration
+	// === CONFIGURATION ===
+	// Load environment-specific configuration (development/production)
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
@@ -26,16 +27,24 @@ func main() {
 	log.Printf("Starting application in %s mode", cfg.Environment)
 	log.Printf("Using database driver: %s", cfg.DatabaseDriver)
 
-	// Initialize database
+	// === DATABASE SETUP ===
+	// Initialize database connection with appropriate driver:
+	// - SQLite for local development
+	// - Cloudflare D1 for production deployment
 	db, err := database.New(cfg.DatabaseDriver, cfg.DatabaseDSN)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer func(db *database.DB) {
+		err := db.Close()
+		if err != nil {
+			log.Printf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	log.Println("Database connection established")
 
-	// Run migrations from files
+	// Run database migrations to ensure schema is up to date
 	ctx := context.Background()
 	if err := db.MigrateFromFiles(ctx); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
@@ -43,28 +52,41 @@ func main() {
 
 	log.Println("Database migrations completed")
 
-	// Initialize repositories
+	// === DEPENDENCY INJECTION ===
+	// Initialize repositories (data access layer)
 	userRepo := repository.NewUserRepository(db.DB)
 	roomRepo := repository.NewRoomRepository(db.DB)
 
-	// Initialize handlers
+	// Initialize HTTP handlers (presentation layer)
 	userHandler := handlers.NewUserHandler(userRepo)
 	roomHandler := handlers.NewRoomHandler(roomRepo)
 
-	// Setup HTTP router
+	// === HTTP ROUTING SETUP ===
 	mux := http.NewServeMux()
 
 	// Serve static files (API testing page)
+	// Accessible at the root path for browser-based testing
 	fs := http.FileServer(http.Dir("web/static"))
 	mux.Handle("/", fs)
 
-	// Health check endpoint
+	// Health check endpoint for monitoring and load balancers
+	// Returns 200 OK with a simple JSON status message
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy"}`))
+		_, err := w.Write([]byte(`{"status":"healthy"}`))
+		if err != nil {
+			log.Printf("Failed to write health response: %v", err)
+			return
+		}
+		if _, err := w.Write([]byte(`{"status":"healthy"}`)); err != nil {
+			log.Printf("Failed to write health check response: %v", err)
+		}
 	})
 
-	// User endpoints
+	// === USER ENDPOINTS ===
+	// /users - Collection endpoint
+	// GET: List all users (with pagination)
+	// POST: Create a new user
 	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -76,28 +98,38 @@ func main() {
 		}
 	})
 
+	// /users/{id} - Individual user endpoints and sub-resources
+	// Handles multiple route patterns:
+	//   - /users/{id} - GET/PUT/DELETE for individual user operations
+	//   - /users/{id}/rooms - GET to list rooms assigned to a user
 	mux.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
+		// Reject empty ID (path like "/users/")
 		if r.URL.Path == "/users/" {
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
 
-		// Extract ID from path
+		// Parse the URL path to determine the endpoint type
 		path := strings.TrimPrefix(r.URL.Path, "/users/")
 		parts := strings.Split(path, "/")
 
-		// Check for /users/{id}/rooms
+		// Handle sub-resource: /users/{id}/rooms
+		// Returns all rooms that the user is assigned to
 		if len(parts) >= 2 && parts[1] == "rooms" {
 			roomHandler.GetUserRooms(w, r)
 			return
 		}
 
-		// Regular user endpoints /users/{id}
+		// Reject invalid nested paths
 		if strings.Contains(path, "/") {
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
 
+		// Handle individual user operations: /users/{id}
+		// GET: Retrieve user details
+		// PUT: Update user information
+		// DELETE: Remove user from database
 		switch r.Method {
 		case http.MethodGet:
 			userHandler.GetUser(w, r)
@@ -110,7 +142,10 @@ func main() {
 		}
 	})
 
-	// Room endpoints
+	// === ROOM ENDPOINTS ===
+	// /rooms - Collection endpoint
+	// GET: List all rooms (with pagination)
+	// POST: Create a new room
 	mux.HandleFunc("/rooms", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -122,20 +157,29 @@ func main() {
 		}
 	})
 
+	// /rooms/{id} - Individual room endpoints and sub-resources
+	// Handles multiple route patterns:
+	//   - /rooms/{id} - GET/PUT/DELETE for individual room operations
+	//   - /rooms/{id}/users - GET to list users in a room, POST to assign user to room
+	//   - /rooms/{id}/users/{userId} - DELETE to remove user from room
 	mux.HandleFunc("/rooms/", func(w http.ResponseWriter, r *http.Request) {
+		// Reject empty ID (path like "/rooms/")
 		if r.URL.Path == "/rooms/" {
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
 
-		// Extract path parts
+		// Parse the URL path to determine the endpoint type
 		path := strings.TrimPrefix(r.URL.Path, "/rooms/")
 		parts := strings.Split(path, "/")
 
-		// /rooms/{id}/users - Get users in room or assign user to room
+		// Handle sub-resources: /rooms/{id}/users and /rooms/{id}/users/{userId}
+		// This implements the many-to-many relationship between rooms and users
 		if len(parts) >= 2 && parts[1] == "users" {
 			if len(parts) == 2 {
-				// /rooms/{id}/users
+				// /rooms/{id}/users - Collection operations
+				// GET: Retrieve all users assigned to this room
+				// POST: Assign a user to this room (requires user_id in body)
 				switch r.Method {
 				case http.MethodGet:
 					roomHandler.GetRoomUsers(w, r)
@@ -145,24 +189,30 @@ func main() {
 					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				}
 			} else if len(parts) == 3 {
-				// /rooms/{id}/users/{userId}
+				// /rooms/{id}/users/{userId} - Individual relationship operations
+				// DELETE: Remove a specific user from this room
 				if r.Method == http.MethodDelete {
 					roomHandler.RemoveUserFromRoom(w, r)
 				} else {
 					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				}
 			} else {
+				// Invalid path depth
 				http.Error(w, "Not found", http.StatusNotFound)
 			}
 			return
 		}
 
-		// Regular room endpoints /rooms/{id}
+		// Reject invalid nested paths
 		if strings.Contains(path, "/") {
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
 
+		// Handle individual room operations: /rooms/{id}
+		// GET: Retrieve room details
+		// PUT: Update room information
+		// DELETE: Remove room from database
 		switch r.Method {
 		case http.MethodGet:
 			roomHandler.GetRoom(w, r)
@@ -175,16 +225,21 @@ func main() {
 		}
 	})
 
-	// Create server
+	// === SERVER CONFIGURATION ===
+	// Create HTTP server with production-ready timeouts:
+	// - ReadTimeout: prevents slow-client attacks
+	// - WriteTimeout: prevents slow-write attacks
+	// - IdleTimeout: closes idle keep-alive connections
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      loggingMiddleware(mux),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Handler:      loggingMiddleware(mux), // Wrap router with logging middleware
+		ReadTimeout:  15 * time.Second,       // Maximum time to read request
+		WriteTimeout: 15 * time.Second,       // Maximum time to write response
+		IdleTimeout:  60 * time.Second,       // Maximum idle time for keep-alive
 	}
 
-	// Start server in a goroutine
+	// === SERVER STARTUP ===
+	// Start server in a goroutine to allow graceful shutdown handling
 	go func() {
 		log.Printf("Server starting on port %s", cfg.Port)
 		log.Printf("API Tester available at: http://localhost:%s", cfg.Port)
@@ -194,14 +249,16 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// === GRACEFUL SHUTDOWN ===
+	// Listen for termination signals (SIGINT from Ctrl+C, SIGTERM from orchestrators)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	<-quit // Block until signal received
 
 	log.Println("Server is shutting down...")
 
 	// Gracefully shutdown the server with a timeout
+	// Allows in-flight requests to complete before shutting down
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -212,7 +269,10 @@ func main() {
 	log.Println("Server stopped")
 }
 
-// loggingMiddleware logs HTTP requests
+// loggingMiddleware is an HTTP middleware that logs request information.
+// Logs: HTTP method, request URI, and processing duration.
+// This helps with debugging and monitoring API usage.
+// Example log: "GET /users/123 1.234ms"
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

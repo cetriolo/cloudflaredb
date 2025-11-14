@@ -21,7 +21,7 @@ Content-Type: application/json
 {
   "name": "Conference Room A",
   "description": "Large meeting room on 2nd floor",
-  "capacity": 20
+  "room_type_id": 1
 }
 ```
 
@@ -31,7 +31,7 @@ Content-Type: application/json
   "id": 1,
   "name": "Conference Room A",
   "description": "Large meeting room on 2nd floor",
-  "capacity": 20,
+  "room_type_id": 1,
   "created_at": "2025-11-13T10:00:00Z",
   "updated_at": "2025-11-13T10:00:00Z"
 }
@@ -49,7 +49,7 @@ GET /rooms/{id}
   "id": 1,
   "name": "Conference Room A",
   "description": "Large meeting room on 2nd floor",
-  "capacity": 20,
+  "room_type_id": 1,
   "created_at": "2025-11-13T10:00:00Z",
   "updated_at": "2025-11-13T10:00:00Z"
 }
@@ -72,7 +72,7 @@ GET /rooms?limit=10&offset=0
     "id": 1,
     "name": "Conference Room A",
     "description": "Large meeting room",
-    "capacity": 20,
+    "room_type_id": 1,
     "created_at": "2025-11-13T10:00:00Z",
     "updated_at": "2025-11-13T10:00:00Z"
   }
@@ -88,7 +88,7 @@ Content-Type: application/json
 {
   "name": "Updated Room Name",
   "description": "Updated description",
-  "capacity": 25
+  "room_type_id": 2
 }
 ```
 
@@ -98,7 +98,7 @@ Content-Type: application/json
   "id": 1,
   "name": "Updated Room Name",
   "description": "Updated description",
-  "capacity": 25,
+  "room_type_id": 2,
   "created_at": "2025-11-13T10:00:00Z",
   "updated_at": "2025-11-13T10:30:00Z"
 }
@@ -113,6 +113,107 @@ DELETE /rooms/{id}
 **Response:** `204 No Content`
 
 **Note:** Deleting a room will also remove all user assignments to that room (CASCADE).
+
+## Room Type Endpoints
+
+### Create Room Type
+
+```http
+POST /room_types
+Content-Type: application/json
+
+{
+  "size": "large",
+  "style": "modern"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": 1,
+  "size": "large",
+  "style": "modern",
+  "created_at": "2025-11-13T10:00:00Z",
+  "updated_at": "2025-11-13T10:00:00Z"
+}
+```
+
+### Get Room Type
+
+```http
+GET /room_types/{id}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": 1,
+  "size": "large",
+  "style": "modern",
+  "created_at": "2025-11-13T10:00:00Z",
+  "updated_at": "2025-11-13T10:00:00Z"
+}
+```
+
+### List Room Types
+
+```http
+GET /room_types?limit=10&offset=0
+```
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "size": "large",
+    "style": "modern",
+    "created_at": "2025-11-13T10:00:00Z",
+    "updated_at": "2025-11-13T10:00:00Z"
+  },
+  {
+    "id": 2,
+    "size": "small",
+    "style": "traditional",
+    "created_at": "2025-11-13T10:05:00Z",
+    "updated_at": "2025-11-13T10:05:00Z"
+  }
+]
+```
+
+### Update Room Type
+
+```http
+PUT /room_types/{id}
+Content-Type: application/json
+
+{
+  "size": "medium",
+  "style": "contemporary"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": 1,
+  "size": "medium",
+  "style": "contemporary",
+  "created_at": "2025-11-13T10:00:00Z",
+  "updated_at": "2025-11-13T10:30:00Z"
+}
+```
+
+### Delete Room Type
+
+```http
+DELETE /room_types/{id}
+```
+
+**Response:** `204 No Content`
+
+**Note:** Deleting a room type will set the `room_type_id` to NULL for all rooms using that type (SET NULL).
 
 ## User-Room Relationship Endpoints
 
@@ -130,21 +231,19 @@ GET /rooms/{id}/users
   "id": 1,
   "name": "Conference Room A",
   "description": "Large meeting room",
-  "capacity": 20,
+  "room_type_id": 1,
   "created_at": "2025-11-13T10:00:00Z",
   "updated_at": "2025-11-13T10:00:00Z",
   "users": [
     {
       "id": 1,
-      "email": "john@example.com",
-      "name": "John Doe",
+      "external_id": "user_john_001",
       "created_at": "2025-11-13T09:00:00Z",
       "updated_at": "2025-11-13T09:00:00Z"
     },
     {
       "id": 2,
-      "email": "jane@example.com",
-      "name": "Jane Smith",
+      "external_id": "user_jane_002",
       "created_at": "2025-11-13T09:30:00Z",
       "updated_at": "2025-11-13T09:30:00Z"
     }
@@ -204,7 +303,7 @@ GET /users/{id}/rooms
     "id": 1,
     "name": "Conference Room A",
     "description": "Large meeting room",
-    "capacity": 20,
+    "room_type_id": 1,
     "created_at": "2025-11-13T10:00:00Z",
     "updated_at": "2025-11-13T10:00:00Z"
   },
@@ -212,7 +311,7 @@ GET /users/{id}/rooms
     "id": 2,
     "name": "Meeting Room B",
     "description": "Small meeting room",
-    "capacity": 5,
+    "room_type_id": 2,
     "created_at": "2025-11-13T10:15:00Z",
     "updated_at": "2025-11-13T10:15:00Z"
   }
@@ -224,25 +323,33 @@ GET /users/{id}/rooms
 ### Create and Assign Workflow
 
 ```bash
-# 1. Create a room
+# 1. Create a room type first
+curl -X POST http://localhost:8080/room_types \
+  -H "Content-Type: application/json" \
+  -d '{
+    "size": "large",
+    "style": "modern"
+  }'
+
+# 2. Create a room with room_type_id
 curl -X POST http://localhost:8080/rooms \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Dev Team Room",
     "description": "Development team workspace",
-    "capacity": 15
+    "room_type_id": 1
   }'
 
-# 2. Create users (assuming users endpoint)
+# 3. Create users
 curl -X POST http://localhost:8080/users \
   -H "Content-Type: application/json" \
-  -d '{"email": "dev1@example.com", "name": "Developer 1"}'
+  -d '{"external_id": "user_dev1"}'
 
 curl -X POST http://localhost:8080/users \
   -H "Content-Type: application/json" \
-  -d '{"email": "dev2@example.com", "name": "Developer 2"}'
+  -d '{"external_id": "user_dev2"}'
 
-# 3. Assign users to room
+# 4. Assign users to room
 curl -X POST http://localhost:8080/rooms/1/users \
   -H "Content-Type: application/json" \
   -d '{"user_id": 1}'
@@ -251,13 +358,13 @@ curl -X POST http://localhost:8080/rooms/1/users \
   -H "Content-Type: application/json" \
   -d '{"user_id": 2}'
 
-# 4. Get room with users
+# 5. Get room with users
 curl http://localhost:8080/rooms/1/users
 
-# 5. Get user's rooms
+# 6. Get user's rooms
 curl http://localhost:8080/users/1/rooms
 
-# 6. Remove user from room
+# 7. Remove user from room
 curl -X DELETE http://localhost:8080/rooms/1/users/1
 ```
 
@@ -281,10 +388,11 @@ curl -X DELETE http://localhost:8080/rooms/1/users/1
    - Deleting a room removes all user assignments
    - Deleting a user removes all their room assignments
 
-3. **Capacity**
-   - Room capacity is informational only
-   - No enforcement on number of assigned users vs capacity
-   - Can be used for UI warnings/validations
+3. **Room Types**
+   - Rooms can be associated with room types via `room_type_id`
+   - Room type is optional (nullable foreign key)
+   - Room types define size and style characteristics
+   - Deleting a room type sets affected rooms' `room_type_id` to NULL
 
 ## Database Schema
 
@@ -295,7 +403,20 @@ CREATE TABLE rooms (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    capacity INTEGER NOT NULL DEFAULT 1,
+    room_type_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (room_type_id) REFERENCES room_types(id) ON DELETE SET NULL
+);
+```
+
+### Room Types Table
+
+```sql
+CREATE TABLE room_types (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    size TEXT NOT NULL,
+    style TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -324,13 +445,13 @@ CREATE TABLE user_rooms (
 type CreateRoomRequest struct {
     Name        string `json:"name"`
     Description string `json:"description"`
-    Capacity    int    `json:"capacity"`
+    RoomTypeID  *int   `json:"room_type_id,omitempty"`
 }
 
 req := CreateRoomRequest{
     Name:        "Conference Room",
     Description: "Main conference room",
-    Capacity:    20,
+    RoomTypeID:  intPtr(1), // Helper function: func intPtr(i int) *int { return &i }
 }
 
 // Assign user to room
@@ -351,7 +472,7 @@ const room = await fetch('http://localhost:8080/rooms', {
   body: JSON.stringify({
     name: 'Conference Room',
     description: 'Main meeting space',
-    capacity: 20
+    room_type_id: 1
   })
 });
 
@@ -376,7 +497,7 @@ import requests
 room = requests.post('http://localhost:8080/rooms', json={
     'name': 'Conference Room',
     'description': 'Main meeting space',
-    'capacity': 20
+    'room_type_id': 1
 })
 
 # Assign user to room
@@ -392,11 +513,12 @@ user_rooms = rooms.json()
 ### Scenario 1: Team Room Setup
 
 ```
-1. Create "Dev Team Room" with capacity 10
-2. Create 5 developer users
-3. Assign all developers to the room
-4. Verify room shows 5 users
-5. Verify each user shows "Dev Team Room" in their rooms list
+1. Create a room type (size: "medium", style: "collaborative")
+2. Create "Dev Team Room" with room_type_id pointing to the room type
+3. Create 5 developer users with external_ids
+4. Assign all developers to the room
+5. Verify room shows 5 users
+6. Verify each user shows "Dev Team Room" in their rooms list
 ```
 
 ### Scenario 2: User in Multiple Rooms
