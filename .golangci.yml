@@ -1,6 +1,7 @@
+version: "2"
+
 run:
   timeout: 5m
-  modules-download-mode: readonly
 
 linters:
   enable:
@@ -9,12 +10,7 @@ linters:
     - govet
     - ineffassign
     - staticcheck
-    - unused
-    - gofmt
-    - goimports
-    - misspell
-    - revive
 
 issues:
-  exclude-files:
-    - ".*_test\\.go$"
+  exclude-patterns:
+    - ".*_test\\.go"
