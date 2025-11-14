@@ -48,7 +48,7 @@ func (r *RoomTypeRepository) Create(ctx context.Context, req *models.CreateRoomT
 // Uses the scanRoomType helper to handle database type conversions.
 func (r *RoomTypeRepository) GetByID(ctx context.Context, id int64) (*models.RoomType, error) {
 	query := `
-		SELECT *
+		SELECT id, size, style, created_at, updated_at
 		FROM room_types
 		WHERE id = ?
 	`
@@ -81,7 +81,7 @@ func (r *RoomTypeRepository) GetByID(ctx context.Context, id int64) (*models.Roo
 // Returns an empty slice if no room types are found.
 func (r *RoomTypeRepository) List(ctx context.Context, limit, offset int) ([]*models.RoomType, error) {
 	query := `
-		SELECT *
+		SELECT id, size, style, created_at, updated_at
 		FROM room_types
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
