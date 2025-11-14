@@ -598,9 +598,21 @@ func TestRoomRepository_GetUserRooms(t *testing.T) {
 	})
 
 	// Assign user to multiple rooms
-	roomRepo.AssignUserToRoom(ctx, user.ID, room1.ID)
-	roomRepo.AssignUserToRoom(ctx, user.ID, room2.ID)
-	roomRepo.AssignUserToRoom(ctx, user.ID, room3.ID)
+	err := roomRepo.AssignUserToRoom(ctx, user.ID, room1.ID)
+	if err != nil {
+		t.Fatalf("Failed to assign user rooms: %v", err)
+		return
+	}
+	err = roomRepo.AssignUserToRoom(ctx, user.ID, room2.ID)
+	if err != nil {
+		t.Fatalf("Failed to assign user rooms: %v", err)
+		return
+	}
+	err = roomRepo.AssignUserToRoom(ctx, user.ID, room3.ID)
+	if err != nil {
+		t.Fatalf("Failed to assign user rooms: %v", err)
+		return
+	}
 
 	// Get user rooms
 	rooms, err := roomRepo.GetUserRooms(ctx, user.ID)
