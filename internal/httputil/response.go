@@ -2,6 +2,7 @@ package httputil
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
@@ -14,7 +15,11 @@ import (
 func RespondJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	err := json.NewEncoder(w).Encode(data)
+	if err != nil {
+		log.Printf("Failed to write response: %v", err)
+	}
+
 }
 
 // RespondError sends a standardized JSON error response.

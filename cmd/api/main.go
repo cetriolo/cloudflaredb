@@ -69,6 +69,9 @@ func main() {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"healthy"}`))
+		if _, err := w.Write([]byte(`{"status":"healthy"}`)); err != nil {
+			log.Printf("Failed to write health check response: %v", err)
+		}
 	})
 
 	// === USER ENDPOINTS ===

@@ -73,7 +73,12 @@ func setupTestDBWithRooms(t *testing.T) *sql.DB {
 
 func TestRoomRepository_Create(t *testing.T) {
 	db := setupTestDBWithRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Failed to close test database: %v", err)
+		}
+	}(db)
 
 	repo := NewRoomRepository(db)
 	roomTypeRepo := NewRoomTypeRepository(db)
@@ -137,7 +142,12 @@ func TestRoomRepository_Create(t *testing.T) {
 
 func TestRoomRepository_GetByID(t *testing.T) {
 	db := setupTestDBWithRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Failed to close test database: %v", err)
+		}
+	}(db)
 
 	repo := NewRoomRepository(db)
 	ctx := context.Background()
@@ -190,7 +200,12 @@ func TestRoomRepository_GetByID(t *testing.T) {
 
 func TestRoomRepository_List(t *testing.T) {
 	db := setupTestDBWithRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Failed to close test database: %v", err)
+		}
+	}(db)
 
 	repo := NewRoomRepository(db)
 	ctx := context.Background()
@@ -248,7 +263,12 @@ func TestRoomRepository_List(t *testing.T) {
 
 func TestRoomRepository_Update(t *testing.T) {
 	db := setupTestDBWithRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Failed to close test database: %v", err)
+		}
+	}(db)
 
 	repo := NewRoomRepository(db)
 	roomTypeRepo := NewRoomTypeRepository(db)
@@ -326,7 +346,12 @@ func TestRoomRepository_Update(t *testing.T) {
 
 func TestRoomRepository_Delete(t *testing.T) {
 	db := setupTestDBWithRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Failed to close test database: %v", err)
+		}
+	}(db)
 
 	repo := NewRoomRepository(db)
 	ctx := context.Background()
@@ -377,7 +402,12 @@ func TestRoomRepository_Delete(t *testing.T) {
 
 func TestRoomRepository_AssignUserToRoom(t *testing.T) {
 	db := setupTestDBWithRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Failed to close test database: %v", err)
+		}
+	}(db)
 
 	roomRepo := NewRoomRepository(db)
 	userRepo := NewUserRepository(db)
@@ -437,7 +467,12 @@ func TestRoomRepository_AssignUserToRoom(t *testing.T) {
 
 func TestRoomRepository_GetRoomWithUsers(t *testing.T) {
 	db := setupTestDBWithRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Failed to close test database: %v", err)
+		}
+	}(db)
 
 	roomRepo := NewRoomRepository(db)
 	userRepo := NewUserRepository(db)
@@ -476,7 +511,12 @@ func TestRoomRepository_GetRoomWithUsers(t *testing.T) {
 
 func TestRoomRepository_RemoveUserFromRoom(t *testing.T) {
 	db := setupTestDBWithRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Failed to close test database: %v", err)
+		}
+	}(db)
 
 	roomRepo := NewRoomRepository(db)
 	userRepo := NewUserRepository(db)
@@ -518,7 +558,12 @@ func TestRoomRepository_RemoveUserFromRoom(t *testing.T) {
 
 func TestRoomRepository_GetUserRooms(t *testing.T) {
 	db := setupTestDBWithRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Failed to close test database: %v", err)
+		}
+	}(db)
 
 	roomRepo := NewRoomRepository(db)
 	userRepo := NewUserRepository(db)

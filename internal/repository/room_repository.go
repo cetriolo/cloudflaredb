@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"cloudflaredb/internal/models"
@@ -57,7 +58,12 @@ func (r *RoomRepository) GetByID(ctx context.Context, id int64) (*models.Room, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to query room: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	if !rows.Next() {
 		return nil, fmt.Errorf("room not found")
@@ -91,7 +97,12 @@ func (r *RoomRepository) List(ctx context.Context, limit, offset int) ([]*models
 	if err != nil {
 		return nil, fmt.Errorf("failed to list rooms: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	var rooms []*models.Room
 	for rows.Next() {
@@ -192,7 +203,12 @@ func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*m
 	if err != nil {
 		return nil, fmt.Errorf("failed to get room users: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	var users []*models.User
 	for rows.Next() {

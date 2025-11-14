@@ -46,7 +46,12 @@ func TestNew(t *testing.T) {
 				if db == nil {
 					t.Error("Expected non-nil database")
 				}
-				defer db.Close()
+				defer func(db *DB) {
+					err := db.Close()
+					if err != nil {
+						t.Errorf("Failed to close database: %v", err)
+					}
+				}(db)
 
 				// Verify connection
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -65,7 +70,12 @@ func TestDB_Migrate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create database: %v", err)
 	}
-	defer db.Close()
+	defer func(db *DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	ctx := context.Background()
 
