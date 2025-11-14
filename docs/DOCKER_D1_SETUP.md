@@ -409,7 +409,7 @@ docker push your-registry.com/cloudflaredb:latest
 - [Cloudflare D1 Documentation](https://developers.cloudflare.com/d1/)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [Wrangler CLI Documentation](https://developers.cloudflare.com/workers/wrangler/)
-- [Migration Guide](migrations/README.md)
+- [Migration Guide](../migrations/README.md)
 
 ## Need Help?
 

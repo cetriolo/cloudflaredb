@@ -359,5 +359,5 @@ curl http://localhost:8080/users  # If users table exists, migration ran
 ## Additional Resources
 
 - [Docker D1 Setup Guide](DOCKER_D1_SETUP.md)
-- [Migrations README](migrations/README.md)
+- [Migrations README](../migrations/README.md)
 - [GitHub Secrets Setup](GITHUB_SECRETS_SETUP.md)
