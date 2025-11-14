@@ -74,7 +74,12 @@ func setupTestDBForRooms(t *testing.T) *sql.DB {
 
 func TestRoomHandler_CreateRoom(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewRoomRepository(db)
 	handler := NewRoomHandler(repo)
@@ -144,7 +149,12 @@ func TestRoomHandler_CreateRoom(t *testing.T) {
 
 func TestRoomHandler_GetRoom(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewRoomRepository(db)
 	handler := NewRoomHandler(repo)
@@ -207,7 +217,12 @@ func TestRoomHandler_GetRoom(t *testing.T) {
 
 func TestRoomHandler_ListRooms(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewRoomRepository(db)
 	handler := NewRoomHandler(repo)
@@ -276,7 +291,12 @@ func TestRoomHandler_ListRooms(t *testing.T) {
 
 func TestRoomHandler_AssignUserToRoom(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	roomRepo := repository.NewRoomRepository(db)
 	userRepo := repository.NewUserRepository(db)
@@ -322,7 +342,12 @@ func TestRoomHandler_AssignUserToRoom(t *testing.T) {
 
 func TestRoomHandler_GetRoomUsers(t *testing.T) {
 	db := setupTestDBForRooms(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	roomRepo := repository.NewRoomRepository(db)
 	userRepo := repository.NewUserRepository(db)

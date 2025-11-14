@@ -495,8 +495,16 @@ func TestRoomRepository_GetRoomWithUsers(t *testing.T) {
 	})
 
 	// Assign users to room
-	roomRepo.AssignUserToRoom(ctx, user1.ID, room.ID)
-	roomRepo.AssignUserToRoom(ctx, user2.ID, room.ID)
+	err = roomRepo.AssignUserToRoom(ctx, user1.ID, room.ID)
+	if err != nil {
+		t.Errorf("Failed to assign user1 to room: %v", err)
+		return
+	}
+	err = roomRepo.AssignUserToRoom(ctx, user2.ID, room.ID)
+	if err != nil {
+		t.Errorf("Failed to assign user2 to room: %v", err)
+		return
+	}
 
 	// Get room with users
 	roomWithUsers, err := roomRepo.GetRoomWithUsers(ctx, room.ID)
@@ -531,10 +539,14 @@ func TestRoomRepository_RemoveUserFromRoom(t *testing.T) {
 	})
 
 	// Assign user to room
-	roomRepo.AssignUserToRoom(ctx, user.ID, room.ID)
+	err := roomRepo.AssignUserToRoom(ctx, user.ID, room.ID)
+	if err != nil {
+		t.Fatalf("Failed to assign user to room: %v", err)
+		return
+	}
 
 	// Remove user from room
-	err := roomRepo.RemoveUserFromRoom(ctx, user.ID, room.ID)
+	err = roomRepo.RemoveUserFromRoom(ctx, user.ID, room.ID)
 	if err != nil {
 		t.Errorf("Failed to remove user from room: %v", err)
 	}

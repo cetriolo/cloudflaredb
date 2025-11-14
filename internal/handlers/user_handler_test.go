@@ -44,7 +44,12 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestUserHandler_CreateUser(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewUserRepository(db)
 	handler := NewUserHandler(repo)
@@ -119,7 +124,12 @@ func TestUserHandler_CreateUser(t *testing.T) {
 
 func TestUserHandler_GetUser(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewUserRepository(db)
 	handler := NewUserHandler(repo)
@@ -181,7 +191,12 @@ func TestUserHandler_GetUser(t *testing.T) {
 
 func TestUserHandler_ListUsers(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewUserRepository(db)
 	handler := NewUserHandler(repo)
@@ -249,7 +264,12 @@ func TestUserHandler_ListUsers(t *testing.T) {
 
 func TestUserHandler_UpdateUser(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewUserRepository(db)
 	handler := NewUserHandler(repo)
@@ -330,7 +350,12 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 
 func TestUserHandler_DeleteUser(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := repository.NewUserRepository(db)
 	handler := NewUserHandler(repo)
