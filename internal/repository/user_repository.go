@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"cloudflaredb/internal/models"
@@ -58,7 +59,12 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	if !rows.Next() {
 		return nil, fmt.Errorf("user not found")
@@ -87,7 +93,12 @@ func (r *UserRepository) GetByExternalID(ctx context.Context, externalID string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	if !rows.Next() {
 		return nil, fmt.Errorf("user not found")
@@ -121,7 +132,12 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	var users []*models.User
 	for rows.Next() {

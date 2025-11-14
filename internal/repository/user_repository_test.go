@@ -39,7 +39,12 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestUserRepository_Create(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -90,7 +95,12 @@ func TestUserRepository_Create(t *testing.T) {
 
 func TestUserRepository_GetByID(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -142,7 +152,12 @@ func TestUserRepository_GetByID(t *testing.T) {
 
 func TestUserRepository_GetByExternalID(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -191,7 +206,12 @@ func TestUserRepository_GetByExternalID(t *testing.T) {
 
 func TestUserRepository_List(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -249,7 +269,12 @@ func TestUserRepository_List(t *testing.T) {
 
 func TestUserRepository_Update(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
@@ -305,7 +330,12 @@ func TestUserRepository_Update(t *testing.T) {
 
 func TestUserRepository_Delete(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			t.Errorf("Failed to close database: %v", err)
+		}
+	}(db)
 
 	repo := NewUserRepository(db)
 	ctx := context.Background()
