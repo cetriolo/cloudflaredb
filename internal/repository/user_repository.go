@@ -19,7 +19,10 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-// Create inserts a new user into the database
+// Create inserts a new user into the database.
+// It automatically sets created_at and updated_at timestamps.
+// Returns the created user with its generated ID, or an error if creation fails.
+// Will return an error if a user with the same email already exists (UNIQUE constraint).
 func (r *UserRepository) Create(ctx context.Context, req *models.CreateUserRequest) (*models.User, error) {
 	query := `
 		INSERT INTO users (email, name, created_at, updated_at)
@@ -41,7 +44,9 @@ func (r *UserRepository) Create(ctx context.Context, req *models.CreateUserReque
 	return r.GetByID(ctx, id)
 }
 
-// GetByID retrieves a user by ID
+// GetByID retrieves a single user by their ID.
+// Returns an error with message "user not found" if the user doesn't exist.
+// Uses the scanUser helper to handle database type conversions.
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, error) {
 	query := `
 		SELECT *
@@ -68,7 +73,9 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 	return user, nil
 }
 
-// GetByEmail retrieves a user by email
+// GetByEmail retrieves a single user by their email address.
+// Returns an error with message "user not found" if no user has the specified email.
+// Useful for authentication and email uniqueness checks.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT *
@@ -95,7 +102,13 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 	return user, nil
 }
 
-// List retrieves all users with pagination
+// List retrieves all users with pagination support.
+// Results are ordered by created_at in descending order (newest first).
+// Parameters:
+//   - limit: maximum number of users to return
+//   - offset: number of users to skip before starting to return results
+//
+// Returns an empty slice if no users are found.
 func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models.User, error) {
 	query := `
 		SELECT *
@@ -127,7 +140,11 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models
 	return users, nil
 }
 
-// Update updates a user's information
+// Update updates a user's information.
+// Only non-empty fields in the request will be updated (partial updates supported).
+// The updated_at timestamp is automatically updated to the current time.
+// Returns the updated user object or an error if the user is not found.
+// Uses COALESCE and NULLIF to handle partial updates gracefully.
 func (r *UserRepository) Update(ctx context.Context, id int64, req *models.UpdateUserRequest) (*models.User, error) {
 	query := `
 		UPDATE users
@@ -155,7 +172,10 @@ func (r *UserRepository) Update(ctx context.Context, id int64, req *models.Updat
 	return r.GetByID(ctx, id)
 }
 
-// Delete removes a user from the database
+// Delete permanently removes a user from the database.
+// Returns an error with message "user not found" if the user doesn't exist.
+// Note: This does not cascade delete related records like user_rooms.
+// Consider handling related records before calling this method.
 func (r *UserRepository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM users WHERE id = ?`
 
