@@ -1,3 +1,5 @@
+version: 2
+
 linters:
   enable:
     - errcheck
@@ -5,12 +7,6 @@ linters:
     - govet
     - ineffassign
     - staticcheck
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
 
 run:
   timeout: 5m
