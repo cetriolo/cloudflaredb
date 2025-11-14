@@ -22,15 +22,15 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 // Create inserts a new user into the database.
 // It automatically sets created_at and updated_at timestamps.
 // Returns the created user with its generated ID, or an error if creation fails.
-// Will return an error if a user with the same email already exists (UNIQUE constraint).
+// Will return an error if a user with the same external_id already exists (UNIQUE constraint).
 func (r *UserRepository) Create(ctx context.Context, req *models.CreateUserRequest) (*models.User, error) {
 	query := `
-		INSERT INTO users (email, name, created_at, updated_at)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO users (external_id, created_at, updated_at)
+		VALUES (?, ?, ?)
 	`
 
 	now := time.Now()
-	result, err := r.db.ExecContext(ctx, query, req.Email, req.Name, now, now)
+	result, err := r.db.ExecContext(ctx, query, req.ExternalID, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -65,7 +65,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 	}
 
 	user := &models.User{}
-	err = scanUser(rows, &user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+	err = scanUser(rows, &user.ID, &user.ExternalID, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
@@ -73,17 +73,17 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 	return user, nil
 }
 
-// GetByEmail retrieves a single user by their email address.
-// Returns an error with message "user not found" if no user has the specified email.
-// Useful for authentication and email uniqueness checks.
-func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+// GetByExternalID retrieves a single user by their external ID.
+// Returns an error with message "user not found" if no user has the specified external ID.
+// Useful for authentication and external ID uniqueness checks.
+func (r *UserRepository) GetByExternalID(ctx context.Context, externalID string) (*models.User, error) {
 	query := `
 		SELECT *
 		FROM users
-		WHERE email = ?
+		WHERE external_id = ?
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, email)
+	rows, err := r.db.QueryContext(ctx, query, externalID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
@@ -94,7 +94,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 	}
 
 	user := &models.User{}
-	err = scanUser(rows, &user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+	err = scanUser(rows, &user.ID, &user.ExternalID, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
@@ -126,7 +126,7 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models
 	var users []*models.User
 	for rows.Next() {
 		user := &models.User{}
-		err := scanUser(rows, &user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+		err := scanUser(rows, &user.ID, &user.ExternalID, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
@@ -148,14 +148,13 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models
 func (r *UserRepository) Update(ctx context.Context, id int64, req *models.UpdateUserRequest) (*models.User, error) {
 	query := `
 		UPDATE users
-		SET email = COALESCE(NULLIF(?, ''), email),
-		    name = COALESCE(NULLIF(?, ''), name),
+		SET external_id = COALESCE(NULLIF(?, ''), external_id),
 		    updated_at = ?
 		WHERE id = ?
 	`
 
 	now := time.Now()
-	result, err := r.db.ExecContext(ctx, query, req.Email, req.Name, now, id)
+	result, err := r.db.ExecContext(ctx, query, req.ExternalID, now, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}

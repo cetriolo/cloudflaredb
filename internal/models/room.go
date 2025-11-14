@@ -9,7 +9,7 @@ type Room struct {
 	ID          int64     `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
-	Capacity    int       `json:"capacity"`
+	RoomTypeID  *int64    `json:"room_type_id,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -18,14 +18,14 @@ type Room struct {
 type CreateRoomRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Capacity    int    `json:"capacity"`
+	RoomTypeID  *int64 `json:"room_type_id,omitempty"`
 }
 
 // UpdateRoomRequest represents the payload for updating a room
 type UpdateRoomRequest struct {
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
-	Capacity    int    `json:"capacity,omitempty"`
+	RoomTypeID  *int64 `json:"room_type_id,omitempty"`
 }
 
 // UserRoom represents the many-to-many relationship between users and rooms

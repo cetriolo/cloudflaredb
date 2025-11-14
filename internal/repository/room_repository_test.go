@@ -10,7 +10,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// setupTestDBWithRooms creates an in-memory SQLite database with users and rooms tables
+// setupTestDBWithRooms creates an in-memory SQLite database with users, room_types, and rooms tables
 func setupTestDBWithRooms(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -23,22 +23,33 @@ func setupTestDBWithRooms(t *testing.T) *sql.DB {
 	schema := `
 	CREATE TABLE users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		email TEXT NOT NULL UNIQUE,
-		name TEXT NOT NULL,
+		external_id TEXT NOT NULL UNIQUE,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
-	CREATE INDEX idx_users_email ON users(email);
+	CREATE INDEX idx_users_external_id ON users(external_id);
+
+	CREATE TABLE room_types (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		size TEXT NOT NULL,
+		style TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX idx_room_types_size ON room_types(size);
+	CREATE INDEX idx_room_types_style ON room_types(style);
 
 	CREATE TABLE rooms (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		description TEXT NOT NULL DEFAULT '',
-		capacity INTEGER NOT NULL DEFAULT 1,
+		room_type_id INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (room_type_id) REFERENCES room_types(id) ON DELETE SET NULL
 	);
 	CREATE INDEX idx_rooms_name ON rooms(name);
+	CREATE INDEX idx_rooms_room_type_id ON rooms(room_type_id);
 
 	CREATE TABLE user_rooms (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,7 +76,17 @@ func TestRoomRepository_Create(t *testing.T) {
 	defer db.Close()
 
 	repo := NewRoomRepository(db)
+	roomTypeRepo := NewRoomTypeRepository(db)
 	ctx := context.Background()
+
+	// Create a test room type
+	roomType, err := roomTypeRepo.Create(ctx, &models.CreateRoomTypeRequest{
+		Size:  "large",
+		Style: "conference",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test room type: %v", err)
+	}
 
 	tests := []struct {
 		name    string
@@ -73,19 +94,19 @@ func TestRoomRepository_Create(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "successful creation",
+			name: "successful creation with room type",
 			req: &models.CreateRoomRequest{
 				Name:        "Conference Room A",
 				Description: "Large conference room",
-				Capacity:    20,
+				RoomTypeID:  &roomType.ID,
 			},
 			wantErr: false,
 		},
 		{
-			name: "with minimal fields",
+			name: "successful creation without room type",
 			req: &models.CreateRoomRequest{
-				Name:     "Meeting Room",
-				Capacity: 5,
+				Name:        "Meeting Room",
+				Description: "Small meeting room",
 			},
 			wantErr: false,
 		},
@@ -106,8 +127,8 @@ func TestRoomRepository_Create(t *testing.T) {
 				if room.Name != tt.req.Name {
 					t.Errorf("Expected name %s, got %s", tt.req.Name, room.Name)
 				}
-				if room.Capacity != tt.req.Capacity {
-					t.Errorf("Expected capacity %d, got %d", tt.req.Capacity, room.Capacity)
+				if tt.req.RoomTypeID != nil && (room.RoomTypeID == nil || *room.RoomTypeID != *tt.req.RoomTypeID) {
+					t.Errorf("Expected room_type_id %d, got %v", *tt.req.RoomTypeID, room.RoomTypeID)
 				}
 			}
 		})
@@ -125,7 +146,6 @@ func TestRoomRepository_GetByID(t *testing.T) {
 	room, err := repo.Create(ctx, &models.CreateRoomRequest{
 		Name:        "Test Room",
 		Description: "Test Description",
-		Capacity:    10,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test room: %v", err)
@@ -178,8 +198,7 @@ func TestRoomRepository_List(t *testing.T) {
 	// Create test rooms
 	for i := 1; i <= 5; i++ {
 		_, err := repo.Create(ctx, &models.CreateRoomRequest{
-			Name:     "Room " + string(rune(i)),
-			Capacity: i * 10,
+			Name: "Room " + string(rune(i+'0')),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create test room: %v", err)
@@ -232,13 +251,22 @@ func TestRoomRepository_Update(t *testing.T) {
 	defer db.Close()
 
 	repo := NewRoomRepository(db)
+	roomTypeRepo := NewRoomTypeRepository(db)
 	ctx := context.Background()
+
+	// Create a test room type
+	roomType, err := roomTypeRepo.Create(ctx, &models.CreateRoomTypeRequest{
+		Size:  "medium",
+		Style: "office",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test room type: %v", err)
+	}
 
 	// Create a test room
 	room, err := repo.Create(ctx, &models.CreateRoomRequest{
 		Name:        "Original Room",
 		Description: "Original Description",
-		Capacity:    10,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test room: %v", err)
@@ -259,10 +287,10 @@ func TestRoomRepository_Update(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "update capacity",
+			name: "update room_type_id",
 			id:   room.ID,
 			req: &models.UpdateRoomRequest{
-				Capacity: 25,
+				RoomTypeID: &roomType.ID,
 			},
 			wantErr: false,
 		},
@@ -288,8 +316,8 @@ func TestRoomRepository_Update(t *testing.T) {
 				if tt.req.Name != "" && updated.Name != tt.req.Name {
 					t.Errorf("Expected name %s, got %s", tt.req.Name, updated.Name)
 				}
-				if tt.req.Capacity > 0 && updated.Capacity != tt.req.Capacity {
-					t.Errorf("Expected capacity %d, got %d", tt.req.Capacity, updated.Capacity)
+				if tt.req.RoomTypeID != nil && (updated.RoomTypeID == nil || *updated.RoomTypeID != *tt.req.RoomTypeID) {
+					t.Errorf("Expected room_type_id %d, got %v", *tt.req.RoomTypeID, updated.RoomTypeID)
 				}
 			}
 		})
@@ -305,8 +333,7 @@ func TestRoomRepository_Delete(t *testing.T) {
 
 	// Create a test room
 	room, err := repo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Test Room",
-		Capacity: 10,
+		Name: "Test Room",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test room: %v", err)
@@ -358,8 +385,7 @@ func TestRoomRepository_AssignUserToRoom(t *testing.T) {
 
 	// Create test user
 	user, err := userRepo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
@@ -367,16 +393,14 @@ func TestRoomRepository_AssignUserToRoom(t *testing.T) {
 
 	// Create test rooms
 	room1, err := roomRepo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Room 1",
-		Capacity: 10,
+		Name: "Room 1",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test room: %v", err)
 	}
 
 	room2, err := roomRepo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Room 2",
-		Capacity: 20,
+		Name: "Room 2",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test room: %v", err)
@@ -421,8 +445,7 @@ func TestRoomRepository_GetRoomWithUsers(t *testing.T) {
 
 	// Create test room
 	room, err := roomRepo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Test Room",
-		Capacity: 10,
+		Name: "Test Room",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test room: %v", err)
@@ -430,12 +453,10 @@ func TestRoomRepository_GetRoomWithUsers(t *testing.T) {
 
 	// Create test users
 	user1, _ := userRepo.Create(ctx, &models.CreateUserRequest{
-		Email: "user1@example.com",
-		Name:  "User 1",
+		ExternalID: "user1",
 	})
 	user2, _ := userRepo.Create(ctx, &models.CreateUserRequest{
-		Email: "user2@example.com",
-		Name:  "User 2",
+		ExternalID: "user2",
 	})
 
 	// Assign users to room
@@ -463,12 +484,10 @@ func TestRoomRepository_RemoveUserFromRoom(t *testing.T) {
 
 	// Create test user and room
 	user, _ := userRepo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 	room, _ := roomRepo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Test Room",
-		Capacity: 10,
+		Name: "Test Room",
 	})
 
 	// Assign user to room
@@ -507,22 +526,18 @@ func TestRoomRepository_GetUserRooms(t *testing.T) {
 
 	// Create test user
 	user, _ := userRepo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 
 	// Create test rooms
 	room1, _ := roomRepo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Room 1",
-		Capacity: 10,
+		Name: "Room 1",
 	})
 	room2, _ := roomRepo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Room 2",
-		Capacity: 20,
+		Name: "Room 2",
 	})
 	room3, _ := roomRepo.Create(ctx, &models.CreateRoomRequest{
-		Name:     "Room 3",
-		Capacity: 30,
+		Name: "Room 3",
 	})
 
 	// Assign user to multiple rooms

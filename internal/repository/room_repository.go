@@ -24,12 +24,12 @@ func NewRoomRepository(db *sql.DB) *RoomRepository {
 // Returns the created room with its generated ID, or an error if creation fails.
 func (r *RoomRepository) Create(ctx context.Context, req *models.CreateRoomRequest) (*models.Room, error) {
 	query := `
-		INSERT INTO rooms (name, description, capacity, created_at, updated_at)
+		INSERT INTO rooms (name, description, room_type_id, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)
 	`
 
 	now := time.Now()
-	result, err := r.db.ExecContext(ctx, query, req.Name, req.Description, req.Capacity, now, now)
+	result, err := r.db.ExecContext(ctx, query, req.Name, req.Description, req.RoomTypeID, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create room: %w", err)
 	}
@@ -64,7 +64,7 @@ func (r *RoomRepository) GetByID(ctx context.Context, id int64) (*models.Room, e
 	}
 
 	room := &models.Room{}
-	err = scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+	err = scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.RoomTypeID, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan room: %w", err)
 	}
@@ -96,7 +96,7 @@ func (r *RoomRepository) List(ctx context.Context, limit, offset int) ([]*models
 	var rooms []*models.Room
 	for rows.Next() {
 		room := &models.Room{}
-		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.RoomTypeID, &room.CreatedAt, &room.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan room: %w", err)
 		}
@@ -113,20 +113,20 @@ func (r *RoomRepository) List(ctx context.Context, limit, offset int) ([]*models
 // Update updates a room's information.
 // Only non-empty/non-zero fields in the request will be updated (partial updates supported).
 // The updated_at timestamp is automatically updated to the current time.
-// For capacity: only updates if the new value is greater than 0.
+// For room_type_id: only updates if the new value is not nil.
 // Returns the updated room object or an error if the room is not found.
 func (r *RoomRepository) Update(ctx context.Context, id int64, req *models.UpdateRoomRequest) (*models.Room, error) {
 	query := `
 		UPDATE rooms
 		SET name = COALESCE(NULLIF(?, ''), name),
 		    description = COALESCE(NULLIF(?, ''), description),
-		    capacity = CASE WHEN ? > 0 THEN ? ELSE capacity END,
+		    room_type_id = CASE WHEN ? IS NOT NULL THEN ? ELSE room_type_id END,
 		    updated_at = ?
 		WHERE id = ?
 	`
 
 	now := time.Now()
-	result, err := r.db.ExecContext(ctx, query, req.Name, req.Description, req.Capacity, req.Capacity, now, id)
+	result, err := r.db.ExecContext(ctx, query, req.Name, req.Description, req.RoomTypeID, req.RoomTypeID, now, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update room: %w", err)
 	}
@@ -169,7 +169,7 @@ func (r *RoomRepository) Delete(ctx context.Context, id int64) error {
 
 // GetRoomWithUsers retrieves a room along with all users assigned to it.
 // Returns a RoomWithUsers object containing the room details and a list of users.
-// Users are ordered alphabetically by name.
+// Users are ordered by their external_id.
 // Returns an error if the room is not found.
 // The Users slice will be empty if no users are assigned to the room.
 func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*models.RoomWithUsers, error) {
@@ -185,7 +185,7 @@ func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*m
 		FROM users u
 		INNER JOIN user_rooms ur ON u.id = ur.user_id
 		WHERE ur.room_id = ?
-		ORDER BY u.name
+		ORDER BY u.external_id
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, roomID)
@@ -197,7 +197,7 @@ func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*m
 	var users []*models.User
 	for rows.Next() {
 		user := &models.User{}
-		err := scanUser(rows, &user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+		err := scanUser(rows, &user.ID, &user.ExternalID, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
@@ -221,10 +221,23 @@ func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*m
 func (r *RoomRepository) AssignUserToRoom(ctx context.Context, userID, roomID int64) error {
 	// Check if assignment already exists
 	checkQuery := `SELECT COUNT(*) FROM user_rooms WHERE user_id = ? AND room_id = ?`
-	var count int
-	err := r.db.QueryRowContext(ctx, checkQuery, userID, roomID).Scan(&count)
+	var countResult interface{}
+	err := r.db.QueryRowContext(ctx, checkQuery, userID, roomID).Scan(&countResult)
 	if err != nil {
 		return fmt.Errorf("failed to check existing assignment: %w", err)
+	}
+
+	// Handle both int64 (SQLite3) and float64 (D1) count types
+	var count int64
+	switch v := countResult.(type) {
+	case int64:
+		count = v
+	case float64:
+		count = int64(v)
+	case int:
+		count = int64(v)
+	default:
+		return fmt.Errorf("unexpected count type: %T", countResult)
 	}
 
 	if count > 0 {
@@ -314,7 +327,7 @@ func (r *RoomRepository) GetUserRooms(ctx context.Context, userID int64) ([]*mod
 	var rooms []*models.Room
 	for rows.Next() {
 		room := &models.Room{}
-		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.Capacity, &room.CreatedAt, &room.UpdatedAt)
+		err := scanRoom(rows, &room.ID, &room.Name, &room.Description, &room.RoomTypeID, &room.CreatedAt, &room.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan room: %w", err)
 		}
