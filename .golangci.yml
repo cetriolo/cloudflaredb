@@ -12,5 +12,11 @@ linters:
     - staticcheck
 
 issues:
-  exclude-patterns:
-    - ".*_test\\.go"
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosimple
+        - govet
+        - ineffassign
+        - staticcheck
