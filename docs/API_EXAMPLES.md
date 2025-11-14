@@ -40,8 +40,7 @@ curl http://localhost:8080/health
 curl -X POST http://localhost:8080/users \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "john.doe@example.com",
-    "name": "John Doe"
+    "external_id": "user_abc123"
   }'
 ```
 
@@ -49,8 +48,7 @@ curl -X POST http://localhost:8080/users \
 ```json
 {
   "id": 1,
-  "email": "john.doe@example.com",
-  "name": "John Doe",
+  "external_id": "user_abc123",
   "created_at": "2025-11-13T10:00:00Z",
   "updated_at": "2025-11-13T10:00:00Z"
 }
@@ -66,8 +64,7 @@ curl http://localhost:8080/users/1
 ```json
 {
   "id": 1,
-  "email": "john.doe@example.com",
-  "name": "John Doe",
+  "external_id": "user_abc123",
   "created_at": "2025-11-13T10:00:00Z",
   "updated_at": "2025-11-13T10:00:00Z"
 }
@@ -88,15 +85,13 @@ curl "http://localhost:8080/users?limit=5&offset=10"
 [
   {
     "id": 1,
-    "email": "john.doe@example.com",
-    "name": "John Doe",
+    "external_id": "user_abc123",
     "created_at": "2025-11-13T10:00:00Z",
     "updated_at": "2025-11-13T10:00:00Z"
   },
   {
     "id": 2,
-    "email": "jane.smith@example.com",
-    "name": "Jane Smith",
+    "external_id": "user_def456",
     "created_at": "2025-11-13T10:05:00Z",
     "updated_at": "2025-11-13T10:05:00Z"
   }
@@ -109,8 +104,7 @@ curl "http://localhost:8080/users?limit=5&offset=10"
 curl -X PUT http://localhost:8080/users/1 \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "John Updated Doe",
-    "email": "john.updated@example.com"
+    "external_id": "user_xyz789"
   }'
 ```
 
@@ -118,22 +112,10 @@ curl -X PUT http://localhost:8080/users/1 \
 ```json
 {
   "id": 1,
-  "email": "john.updated@example.com",
-  "name": "John Updated Doe",
+  "external_id": "user_xyz789",
   "created_at": "2025-11-13T10:00:00Z",
   "updated_at": "2025-11-13T10:30:00Z"
 }
-```
-
-### Partial Update
-
-```bash
-# Update only the name
-curl -X PUT http://localhost:8080/users/1 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "New Name Only"
-  }'
 ```
 
 ### Delete a User
@@ -161,21 +143,19 @@ import (
 const apiURL = "http://localhost:8080"
 
 type User struct {
-	ID        int64  `json:"id"`
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID         int64  `json:"id"`
+	ExternalID string `json:"external_id"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
 }
 
 type CreateUserRequest struct {
-	Email string `json:"email"`
-	Name  string `json:"name"`
+	ExternalID string `json:"external_id"`
 }
 
 func main() {
 	// Create a user
-	user, err := createUser("alice@example.com", "Alice")
+	user, err := createUser("user_alice_001")
 	if err != nil {
 		panic(err)
 	}
@@ -196,7 +176,7 @@ func main() {
 	fmt.Printf("Found %d users\n", len(users))
 
 	// Update user
-	user.Name = "Alice Updated"
+	user.ExternalID = "user_alice_updated"
 	user, err = updateUser(user.ID, user)
 	if err != nil {
 		panic(err)
@@ -211,10 +191,9 @@ func main() {
 	fmt.Println("User deleted")
 }
 
-func createUser(email, name string) (*User, error) {
+func createUser(externalID string) (*User, error) {
 	reqBody := CreateUserRequest{
-		Email: email,
-		Name:  name,
+		ExternalID: externalID,
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -322,13 +301,13 @@ func deleteUser(id int64) error {
 const API_URL = 'http://localhost:8080';
 
 // Create a user
-async function createUser(email, name) {
+async function createUser(externalId) {
   const response = await fetch(`${API_URL}/users`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, name }),
+    body: JSON.stringify({ external_id: externalId }),
   });
 
   if (!response.ok) {
@@ -396,7 +375,7 @@ async function deleteUser(id) {
 (async () => {
   try {
     // Create
-    const user = await createUser('bob@example.com', 'Bob');
+    const user = await createUser('user_bob_001');
     console.log('Created:', user);
 
     // Read
@@ -404,7 +383,7 @@ async function deleteUser(id) {
     console.log('Fetched:', fetchedUser);
 
     // Update
-    const updated = await updateUser(user.id, { name: 'Bob Updated' });
+    const updated = await updateUser(user.id, { external_id: 'user_bob_updated' });
     console.log('Updated:', updated);
 
     // List
@@ -425,20 +404,17 @@ async function deleteUser(id) {
 ```typescript
 interface User {
   id: number;
-  email: string;
-  name: string;
+  external_id: string;
   created_at: string;
   updated_at: string;
 }
 
 interface CreateUserRequest {
-  email: string;
-  name: string;
+  external_id: string;
 }
 
 interface UpdateUserRequest {
-  email?: string;
-  name?: string;
+  external_id?: string;
 }
 
 class UserAPIClient {
@@ -514,8 +490,7 @@ const client = new UserAPIClient();
 
 async function main() {
   const user = await client.createUser({
-    email: 'typescript@example.com',
-    name: 'TypeScript User',
+    external_id: 'user_typescript_001',
   });
 
   console.log('Created user:', user);
@@ -538,11 +513,11 @@ class UserAPIClient:
     def __init__(self, base_url: str = API_URL):
         self.base_url = base_url
 
-    def create_user(self, email: str, name: str) -> Dict:
+    def create_user(self, external_id: str) -> Dict:
         """Create a new user"""
         response = requests.post(
             f"{self.base_url}/users",
-            json={"email": email, "name": name}
+            json={"external_id": external_id}
         )
         response.raise_for_status()
         return response.json()
@@ -565,15 +540,12 @@ class UserAPIClient:
     def update_user(
         self,
         user_id: int,
-        email: Optional[str] = None,
-        name: Optional[str] = None
+        external_id: Optional[str] = None
     ) -> Dict:
         """Update a user"""
         updates = {}
-        if email is not None:
-            updates["email"] = email
-        if name is not None:
-            updates["name"] = name
+        if external_id is not None:
+            updates["external_id"] = external_id
 
         response = requests.put(
             f"{self.base_url}/users/{user_id}",
@@ -593,7 +565,7 @@ if __name__ == "__main__":
     client = UserAPIClient()
 
     # Create a user
-    user = client.create_user("python@example.com", "Python User")
+    user = client.create_user("user_python_001")
     print(f"Created user: {user}")
 
     # Get user
@@ -605,7 +577,7 @@ if __name__ == "__main__":
     print(f"Found {len(users)} users")
 
     # Update user
-    updated_user = client.update_user(user["id"], name="Updated Python User")
+    updated_user = client.update_user(user["id"], external_id="user_python_updated")
     print(f"Updated user: {updated_user}")
 
     # Delete user
@@ -648,7 +620,7 @@ You can import this JSON into Postman for easy API testing:
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"test@example.com\",\n  \"name\": \"Test User\"\n}"
+          "raw": "{\n  \"external_id\": \"user_test_001\"\n}"
         },
         "url": {
           "raw": "{{base_url}}/users",
@@ -703,7 +675,7 @@ You can import this JSON into Postman for easy API testing:
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"Updated Name\"\n}"
+          "raw": "{\n  \"external_id\": \"user_updated_001\"\n}"
         },
         "url": {
           "raw": "{{base_url}}/users/{{user_id}}",
@@ -745,7 +717,7 @@ Save this as `CloudflareDB_API.postman_collection.json` and import into Postman.
 ### Handling Errors in Go
 
 ```go
-user, err := createUser("invalid-email", "Test")
+user, err := createUser("user_invalid")
 if err != nil {
 	// Check HTTP status code
 	if strings.Contains(err.Error(), "400") {
@@ -762,7 +734,7 @@ if err != nil {
 
 ```javascript
 try {
-  const user = await createUser('invalid', 'Test');
+  const user = await createUser('user_invalid');
 } catch (error) {
   if (error.message.includes('400')) {
     console.error('Invalid request');
@@ -783,7 +755,7 @@ try {
 for i in {1..10}; do
   curl -X POST http://localhost:8080/users \
     -H "Content-Type: application/json" \
-    -d "{\"email\":\"user${i}@example.com\",\"name\":\"User ${i}\"}"
+    -d "{\"external_id\":\"user_batch_${i}\"}"
 done
 ```
 

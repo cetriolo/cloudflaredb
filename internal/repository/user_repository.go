@@ -49,7 +49,7 @@ func (r *UserRepository) Create(ctx context.Context, req *models.CreateUserReque
 // Uses the scanUser helper to handle database type conversions.
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, error) {
 	query := `
-		SELECT *
+		SELECT id, external_id, created_at, updated_at
 		FROM users
 		WHERE id = ?
 	`
@@ -78,7 +78,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 // Useful for authentication and external ID uniqueness checks.
 func (r *UserRepository) GetByExternalID(ctx context.Context, externalID string) (*models.User, error) {
 	query := `
-		SELECT *
+		SELECT id, external_id, created_at, updated_at
 		FROM users
 		WHERE external_id = ?
 	`
@@ -111,7 +111,7 @@ func (r *UserRepository) GetByExternalID(ctx context.Context, externalID string)
 // Returns an empty slice if no users are found.
 func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models.User, error) {
 	query := `
-		SELECT *
+		SELECT id, external_id, created_at, updated_at
 		FROM users
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?

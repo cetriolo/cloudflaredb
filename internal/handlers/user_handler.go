@@ -21,9 +21,9 @@ func NewUserHandler(repo *repository.UserRepository) *UserHandler {
 }
 
 // CreateUser handles POST /users
-// Creates a new user with the provided email and name.
-// Returns 400 if request body is invalid or required fields are missing.
-// Returns 409 if a user with the same email already exists.
+// Creates a new user with the provided external_id.
+// Returns 400 if request body is invalid or external_id is missing.
+// Returns 409 if a user with the same external_id already exists.
 // Returns 201 with the created user on success.
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateUserRequest
@@ -33,8 +33,8 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate required fields
-	if req.Email == "" || req.Name == "" {
-		httputil.RespondError(w, http.StatusBadRequest, "Email and name are required")
+	if req.ExternalID == "" {
+		httputil.RespondError(w, http.StatusBadRequest, "External ID is required")
 		return
 	}
 
@@ -42,7 +42,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Check for unique constraint violation
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			httputil.RespondError(w, http.StatusConflict, "User with this email already exists")
+			httputil.RespondError(w, http.StatusConflict, "User with this external ID already exists")
 			return
 		}
 		httputil.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create user: %v", err))

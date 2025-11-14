@@ -28,12 +28,11 @@ func setupTestDB(t *testing.T) *sql.DB {
 	schema := `
 	CREATE TABLE users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		email TEXT NOT NULL UNIQUE,
-		name TEXT NOT NULL,
+		external_id TEXT NOT NULL UNIQUE,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
-	CREATE INDEX idx_users_email ON users(email);
+	CREATE INDEX idx_users_external_id ON users(external_id);
 	`
 
 	if _, err := db.Exec(schema); err != nil {
@@ -59,8 +58,7 @@ func TestUserHandler_CreateUser(t *testing.T) {
 		{
 			name: "successful creation",
 			requestBody: models.CreateUserRequest{
-				Email: "test@example.com",
-				Name:  "Test User",
+				ExternalID: "user123",
 			},
 			expectedStatus: http.StatusCreated,
 			checkResponse: func(t *testing.T, body []byte) {
@@ -68,15 +66,15 @@ func TestUserHandler_CreateUser(t *testing.T) {
 				if err := json.Unmarshal(body, &user); err != nil {
 					t.Errorf("Failed to unmarshal response: %v", err)
 				}
-				if user.Email != "test@example.com" {
-					t.Errorf("Expected email test@example.com, got %s", user.Email)
+				if user.ExternalID != "user123" {
+					t.Errorf("Expected external_id user123, got %s", user.ExternalID)
 				}
 			},
 		},
 		{
-			name: "missing email",
+			name: "missing external_id",
 			requestBody: models.CreateUserRequest{
-				Name: "Test User",
+				ExternalID: "",
 			},
 			expectedStatus: http.StatusBadRequest,
 			checkResponse:  nil,
@@ -129,8 +127,7 @@ func TestUserHandler_GetUser(t *testing.T) {
 	// Create a test user
 	ctx := context.Background()
 	user, err := repo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
@@ -193,8 +190,7 @@ func TestUserHandler_ListUsers(t *testing.T) {
 	ctx := context.Background()
 	for i := 1; i <= 5; i++ {
 		_, err := repo.Create(ctx, &models.CreateUserRequest{
-			Email: "test" + string(rune(i)) + "@example.com",
-			Name:  "Test User",
+			ExternalID: "user" + string(rune('0'+i)),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create test user: %v", err)
@@ -261,8 +257,7 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 	// Create a test user
 	ctx := context.Background()
 	user, err := repo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
@@ -278,7 +273,7 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 			name:   "successful update",
 			userID: "1",
 			requestBody: models.UpdateUserRequest{
-				Name: "Updated Name",
+				ExternalID: "updated123",
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -286,7 +281,7 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 			name:   "non-existent user",
 			userID: "9999",
 			requestBody: models.UpdateUserRequest{
-				Name: "Should Fail",
+				ExternalID: "shouldfail",
 			},
 			expectedStatus: http.StatusNotFound,
 		},
@@ -328,8 +323,8 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get updated user: %v", err)
 	}
-	if updatedUser.Name != "Updated Name" {
-		t.Errorf("Expected name 'Updated Name', got '%s'", updatedUser.Name)
+	if updatedUser.ExternalID != "updated123" {
+		t.Errorf("Expected external_id 'updated123', got '%s'", updatedUser.ExternalID)
 	}
 }
 
@@ -343,8 +338,7 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 	// Create a test user
 	ctx := context.Background()
 	user, err := repo.Create(ctx, &models.CreateUserRequest{
-		Email: "test@example.com",
-		Name:  "Test User",
+		ExternalID: "user123",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)

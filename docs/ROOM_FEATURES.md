@@ -9,18 +9,21 @@ A comprehensive Room management system with many-to-many relationships has been 
 ### 1. Database Layer
 
 **Migration**: `migrations/002_create_rooms_table.sql`
-- `rooms` table with id, name, description, capacity, timestamps
+- `rooms` table with id, name, description, room_type_id (nullable FK), timestamps
+- `room_types` table with id, size, style, timestamps
 - `user_rooms` junction table for many-to-many relationships
-- Indexes on name, capacity, user_id, room_id
-- Foreign key constraints with CASCADE delete
+- Indexes on name, user_id, room_id
+- Foreign key constraints: room_type_id (SET NULL on delete), CASCADE for user_rooms
 - UNIQUE constraint on (user_id, room_id) to prevent duplicates
 
 ### 2. Models
 
 **File**: `internal/models/room.go`
-- `Room` - Room entity
+- `Room` - Room entity with room_type_id (nullable)
+- `RoomType` - Room type entity with size and style
 - `CreateRoomRequest` - Create room payload
 - `UpdateRoomRequest` - Update room payload
+- `CreateRoomTypeRequest` - Create room type payload
 - `UserRoom` - Junction table entity
 - `RoomWithUsers` - Room with associated users
 - `UserWithRooms` - User with associated rooms
@@ -103,7 +106,7 @@ curl -X POST http://localhost:8080/rooms \
   -d '{
     "name": "Conference Room A",
     "description": "Large meeting room",
-    "capacity": 20
+    "room_type_id": 1
   }'
 ```
 
@@ -192,7 +195,7 @@ npx wrangler d1 execute cloudflaredb --remote --file=migrations/002_create_rooms
 
 The web testing page at `http://localhost:8080` includes forms for all Room operations:
 
-1. **Create Room** - Form with name, description, capacity
+1. **Create Room** - Form with name, description, room_type_id
 2. **Get Room** - Enter room ID
 3. **List Rooms** - With pagination controls
 4. **Update Room** - Update any room field
@@ -206,12 +209,12 @@ All operations show real-time JSON responses.
 
 ## Business Logic
 
-### Capacity Management
+### Room Type Management
 
-- `capacity` field is informational only
-- No automatic enforcement of capacity limits
-- Application can use it for warnings/validation
-- Can be displayed in UI to show room size
+- `room_type_id` is optional (nullable) - rooms can exist without a type
+- Room types define size and style characteristics
+- Multiple rooms can share the same room type
+- Deleting a room type sets affected rooms' `room_type_id` to NULL (not cascading delete)
 
 ### Assignment Rules
 
@@ -224,7 +227,7 @@ All operations show real-time JSON responses.
 ### Validation
 
 - Room name is required
-- Capacity must be >= 1
+- room_type_id is optional, but if provided must reference an existing room type
 - User ID and Room ID must exist for assignments
 - Cannot assign user to same room twice
 
@@ -235,7 +238,6 @@ All operations show real-time JSON responses.
 ```sql
 -- Rooms table
 CREATE INDEX idx_rooms_name ON rooms(name);
-CREATE INDEX idx_rooms_capacity ON rooms(capacity);
 
 -- User-Rooms junction
 CREATE INDEX idx_user_rooms_user_id ON user_rooms(user_id);
@@ -244,9 +246,9 @@ CREATE INDEX idx_user_rooms_room_id ON user_rooms(room_id);
 
 These indexes optimize:
 - Room lookups by name
-- Filtering by capacity
 - Finding all rooms for a user (fast)
 - Finding all users in a room (fast)
+- JOIN operations with room_types table
 
 ### Query Optimization
 
@@ -263,8 +265,8 @@ These indexes optimize:
 |-------|--------|-------------|
 | Room not found | 404 | Invalid room ID |
 | User already assigned | 409 | Duplicate assignment attempt |
-| Invalid capacity | 400 | Capacity < 1 |
-| Missing required field | 400 | Name or capacity missing |
+| Invalid room_type_id | 400 | Room type doesn't exist |
+| Missing required field | 400 | Name missing |
 | User not in room | 404 | Removing non-existent assignment |
 
 ### Example Error Response
@@ -279,19 +281,20 @@ These indexes optimize:
 
 Potential features to add:
 
-1. **Room Types** - Different categories (meeting, office, etc.)
-2. **Booking System** - Time-based room reservations
-3. **Capacity Enforcement** - Prevent over-booking
-4. **Room Amenities** - Track features (projector, whiteboard, etc.)
-5. **Access Control** - Room-level permissions
-6. **Audit Log** - Track assignments/removals
-7. **Room Availability** - Check if room is full
-8. **Bulk Operations** - Assign multiple users at once
+1. **Booking System** - Time-based room reservations
+2. **Room Amenities** - Track features (projector, whiteboard, etc.)
+3. **Access Control** - Room-level permissions
+4. **Audit Log** - Track assignments/removals
+5. **Room Availability** - Check if room is occupied
+6. **Bulk Operations** - Assign multiple users at once
+7. **Room Type Attributes** - Additional metadata for room types
+8. **Capacity Limits** - Add capacity field based on room type
 
 ## Integration with Existing Features
 
 ### With Users
 
+- Users now use `external_id` instead of email/name fields
 - Users can query their rooms via `/users/{id}/rooms`
 - Deleting a user removes all room assignments
 - User tests updated to include room relationships
@@ -342,7 +345,7 @@ Potential features to add:
    # Create room
    curl -X POST http://localhost:8080/rooms \
      -H "Content-Type: application/json" \
-     -d '{"name":"Dev Room","capacity":10}'
+     -d '{"name":"Dev Room","room_type_id":1}'
    ```
 
 ## Summary

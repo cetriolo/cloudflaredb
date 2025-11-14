@@ -48,7 +48,7 @@ func (r *RoomRepository) Create(ctx context.Context, req *models.CreateRoomReque
 // Uses the scanRoom helper to handle database type conversions.
 func (r *RoomRepository) GetByID(ctx context.Context, id int64) (*models.Room, error) {
 	query := `
-		SELECT *
+		SELECT id, name, description, room_type_id, created_at, updated_at
 		FROM rooms
 		WHERE id = ?
 	`
@@ -81,7 +81,7 @@ func (r *RoomRepository) GetByID(ctx context.Context, id int64) (*models.Room, e
 // Returns an empty slice if no rooms are found.
 func (r *RoomRepository) List(ctx context.Context, limit, offset int) ([]*models.Room, error) {
 	query := `
-		SELECT *
+		SELECT id, name, description, room_type_id, created_at, updated_at
 		FROM rooms
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?
@@ -181,7 +181,7 @@ func (r *RoomRepository) GetRoomWithUsers(ctx context.Context, roomID int64) (*m
 
 	// Get all users assigned to this room
 	query := `
-		SELECT u.*
+		SELECT u.id, u.external_id, u.created_at, u.updated_at
 		FROM users u
 		INNER JOIN user_rooms ur ON u.id = ur.user_id
 		WHERE ur.room_id = ?
@@ -311,7 +311,7 @@ func (r *RoomRepository) RemoveUserFromAllRooms(ctx context.Context, userID int6
 // Performs an INNER JOIN on the user_rooms table to get the relationship.
 func (r *RoomRepository) GetUserRooms(ctx context.Context, userID int64) ([]*models.Room, error) {
 	query := `
-		SELECT r.*
+		SELECT r.id, r.name, r.description, r.room_type_id, r.created_at, r.updated_at
 		FROM rooms r
 		INNER JOIN user_rooms ur ON r.id = ur.room_id
 		WHERE ur.user_id = ?

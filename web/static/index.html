@@ -252,13 +252,14 @@
     <div class="container">
         <header>
             <h1>🚀 CloudflareDB API Tester</h1>
-            <p>Interactive testing interface for Users and Rooms API</p>
+            <p>Interactive testing interface for Users, Rooms, and Room Types API</p>
         </header>
 
         <!-- Tabs -->
         <div class="tabs">
             <button class="tab active" onclick="switchTab('users', this)">👥 Users</button>
             <button class="tab" onclick="switchTab('rooms', this)">🏢 Rooms</button>
+            <button class="tab" onclick="switchTab('roomtypes', this)">📐 Room Types</button>
             <button class="tab" onclick="switchTab('relationships', this)">🔗 User-Room Assignments</button>
         </div>
 
@@ -283,12 +284,8 @@
                     </h2>
                     <form onsubmit="createUser(event)">
                         <div class="form-group">
-                            <label for="createEmail">Email *</label>
-                            <input type="email" id="createEmail" placeholder="user@example.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="createName">Name *</label>
-                            <input type="text" id="createName" placeholder="John Doe" required>
+                            <label for="createExternalId">External ID *</label>
+                            <input type="text" id="createExternalId" placeholder="user123" required>
                         </div>
                         <button type="submit">Create User</button>
                     </form>
@@ -340,12 +337,8 @@
                             <input type="number" id="updateUserId" placeholder="1" required>
                         </div>
                         <div class="form-group">
-                            <label for="updateEmail">Email</label>
-                            <input type="email" id="updateEmail" placeholder="newemail@example.com">
-                        </div>
-                        <div class="form-group">
-                            <label for="updateName">Name</label>
-                            <input type="text" id="updateName" placeholder="New Name">
+                            <label for="updateExternalId">External ID</label>
+                            <input type="text" id="updateExternalId" placeholder="newuser123">
                         </div>
                         <button type="submit">Update User</button>
                     </form>
@@ -388,8 +381,8 @@
                             <input type="text" id="createRoomDesc" placeholder="Large meeting room">
                         </div>
                         <div class="form-group">
-                            <label for="createRoomCapacity">Capacity *</label>
-                            <input type="number" id="createRoomCapacity" placeholder="20" value="10" required min="1">
+                            <label for="createRoomTypeId">Room Type ID (optional)</label>
+                            <input type="number" id="createRoomTypeId" placeholder="1">
                         </div>
                         <button type="submit">Create Room</button>
                     </form>
@@ -449,8 +442,8 @@
                             <input type="text" id="updateRoomDesc" placeholder="Updated description">
                         </div>
                         <div class="form-group">
-                            <label for="updateRoomCapacity">Capacity</label>
-                            <input type="number" id="updateRoomCapacity" placeholder="25" min="1">
+                            <label for="updateRoomTypeId">Room Type ID</label>
+                            <input type="number" id="updateRoomTypeId" placeholder="1">
                         </div>
                         <button type="submit">Update Room</button>
                     </form>
@@ -483,6 +476,103 @@
                             <input type="number" id="roomUsersId" placeholder="1" required>
                         </div>
                         <button type="submit">Get Users in Room</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Room Types Tab -->
+        <div id="roomtypes-tab" class="tab-content">
+            <h2 class="section-title">Room Type Operations</h2>
+            <div class="grid">
+                <!-- Create Room Type -->
+                <div class="card">
+                    <h2>
+                        <span class="method-badge method-post">POST</span>
+                        Create Room Type
+                    </h2>
+                    <form onsubmit="createRoomType(event)">
+                        <div class="form-group">
+                            <label for="createRoomTypeSize">Size *</label>
+                            <input type="text" id="createRoomTypeSize" placeholder="large" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="createRoomTypeStyle">Style *</label>
+                            <input type="text" id="createRoomTypeStyle" placeholder="conference" required>
+                        </div>
+                        <button type="submit">Create Room Type</button>
+                    </form>
+                </div>
+
+                <!-- Get Room Type -->
+                <div class="card">
+                    <h2>
+                        <span class="method-badge method-get">GET</span>
+                        Get Room Type
+                    </h2>
+                    <form onsubmit="getRoomType(event)">
+                        <div class="form-group">
+                            <label for="getRoomTypeId">Room Type ID *</label>
+                            <input type="number" id="getRoomTypeId" placeholder="1" required>
+                        </div>
+                        <button type="submit">Get Room Type</button>
+                    </form>
+                </div>
+
+                <!-- List Room Types -->
+                <div class="card">
+                    <h2>
+                        <span class="method-badge method-get">GET</span>
+                        List Room Types
+                    </h2>
+                    <form onsubmit="listRoomTypes(event)">
+                        <div class="form-group">
+                            <label for="roomTypeLimit">Limit</label>
+                            <input type="number" id="roomTypeLimit" placeholder="10" value="10">
+                        </div>
+                        <div class="form-group">
+                            <label for="roomTypeOffset">Offset</label>
+                            <input type="number" id="roomTypeOffset" placeholder="0" value="0">
+                        </div>
+                        <button type="submit">List Room Types</button>
+                    </form>
+                </div>
+
+                <!-- Update Room Type -->
+                <div class="card">
+                    <h2>
+                        <span class="method-badge method-put">PUT</span>
+                        Update Room Type
+                    </h2>
+                    <form onsubmit="updateRoomType(event)">
+                        <div class="form-group">
+                            <label for="updateRoomTypeId">Room Type ID *</label>
+                            <input type="number" id="updateRoomTypeId" placeholder="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="updateRoomTypeSize">Size</label>
+                            <input type="text" id="updateRoomTypeSize" placeholder="medium">
+                        </div>
+                        <div class="form-group">
+                            <label for="updateRoomTypeStyle">Style</label>
+                            <input type="text" id="updateRoomTypeStyle" placeholder="meeting">
+                        </div>
+                        <button type="submit">Update Room Type</button>
+                    </form>
+                </div>
+
+                <!-- Delete Room Type -->
+                <div class="card">
+                    <h2>
+                        <span class="method-badge method-delete">DELETE</span>
+                        Delete Room Type
+                    </h2>
+                    <form onsubmit="deleteRoomType(event)">
+                        <div class="form-group">
+                            <label for="deleteRoomTypeId">Room Type ID *</label>
+                            <input type="number" id="deleteRoomTypeId" placeholder="1" required>
+                        </div>
+                        <button type="submit">Delete Room Type</button>
                     </form>
                 </div>
             </div>
@@ -664,10 +754,9 @@
             const originalText = button.textContent;
             showLoading(button);
 
-            const email = document.getElementById('createEmail').value;
-            const name = document.getElementById('createName').value;
+            const external_id = document.getElementById('createExternalId').value;
 
-            const result = await makeRequest('POST', '/users', { email, name });
+            const result = await makeRequest('POST', '/users', { external_id });
 
             setTimeout(() => resetButton(button, originalText), 500);
 
@@ -709,12 +798,10 @@
             showLoading(button);
 
             const id = document.getElementById('updateUserId').value;
-            const email = document.getElementById('updateEmail').value;
-            const name = document.getElementById('updateName').value;
+            const external_id = document.getElementById('updateExternalId').value;
 
             const body = {};
-            if (email) body.email = email;
-            if (name) body.name = name;
+            if (external_id) body.external_id = external_id;
 
             const result = await makeRequest('PUT', `/users/${id}`, body);
 
@@ -755,15 +842,17 @@
 
             const name = document.getElementById('createRoomName').value;
             const description = document.getElementById('createRoomDesc').value;
-            const capacity = parseInt(document.getElementById('createRoomCapacity').value);
+            const room_type_id = document.getElementById('createRoomTypeId').value;
 
-            const result = await makeRequest('POST', '/rooms', { name, description, capacity });
+            const body = { name, description };
+            if (room_type_id) body.room_type_id = parseInt(room_type_id);
+
+            const result = await makeRequest('POST', '/rooms', body);
 
             setTimeout(() => resetButton(button, originalText), 500);
 
             if (result.success) {
                 event.target.reset();
-                document.getElementById('createRoomCapacity').value = '10';
             }
         }
 
@@ -802,12 +891,12 @@
             const id = document.getElementById('updateRoomId').value;
             const name = document.getElementById('updateRoomName').value;
             const description = document.getElementById('updateRoomDesc').value;
-            const capacity = document.getElementById('updateRoomCapacity').value;
+            const room_type_id = document.getElementById('updateRoomTypeId').value;
 
             const body = {};
             if (name) body.name = name;
             if (description) body.description = description;
-            if (capacity) body.capacity = parseInt(capacity);
+            if (room_type_id) body.room_type_id = parseInt(room_type_id);
 
             const result = await makeRequest('PUT', `/rooms/${id}`, body);
 
@@ -902,6 +991,95 @@
             await makeRequest('GET', `/users/${id}/rooms`);
 
             setTimeout(() => resetButton(button, originalText), 500);
+        }
+
+        // Room Type API Functions
+        async function createRoomType(event) {
+            event.preventDefault();
+            const button = event.target.querySelector('button');
+            const originalText = button.textContent;
+            showLoading(button);
+
+            const size = document.getElementById('createRoomTypeSize').value;
+            const style = document.getElementById('createRoomTypeStyle').value;
+
+            const result = await makeRequest('POST', '/room-types', { size, style });
+
+            setTimeout(() => resetButton(button, originalText), 500);
+
+            if (result.success) {
+                event.target.reset();
+            }
+        }
+
+        async function getRoomType(event) {
+            event.preventDefault();
+            const button = event.target.querySelector('button');
+            const originalText = button.textContent;
+            showLoading(button);
+
+            const id = document.getElementById('getRoomTypeId').value;
+            await makeRequest('GET', `/room-types/${id}`);
+
+            setTimeout(() => resetButton(button, originalText), 500);
+        }
+
+        async function listRoomTypes(event) {
+            event.preventDefault();
+            const button = event.target.querySelector('button');
+            const originalText = button.textContent;
+            showLoading(button);
+
+            const limit = document.getElementById('roomTypeLimit').value || 10;
+            const offset = document.getElementById('roomTypeOffset').value || 0;
+
+            await makeRequest('GET', `/room-types?limit=${limit}&offset=${offset}`);
+
+            setTimeout(() => resetButton(button, originalText), 500);
+        }
+
+        async function updateRoomType(event) {
+            event.preventDefault();
+            const button = event.target.querySelector('button');
+            const originalText = button.textContent;
+            showLoading(button);
+
+            const id = document.getElementById('updateRoomTypeId').value;
+            const size = document.getElementById('updateRoomTypeSize').value;
+            const style = document.getElementById('updateRoomTypeStyle').value;
+
+            const body = {};
+            if (size) body.size = size;
+            if (style) body.style = style;
+
+            const result = await makeRequest('PUT', `/room-types/${id}`, body);
+
+            setTimeout(() => resetButton(button, originalText), 500);
+
+            if (result.success) {
+                event.target.reset();
+            }
+        }
+
+        async function deleteRoomType(event) {
+            event.preventDefault();
+            const button = event.target.querySelector('button');
+            const originalText = button.textContent;
+
+            const id = document.getElementById('deleteRoomTypeId').value;
+
+            if (!confirm(`Are you sure you want to delete room type ${id}? Rooms using this type will have their room_type_id set to NULL.`)) {
+                return;
+            }
+
+            showLoading(button);
+            const result = await makeRequest('DELETE', `/room-types/${id}`);
+
+            setTimeout(() => resetButton(button, originalText), 500);
+
+            if (result.success) {
+                event.target.reset();
+            }
         }
 
         function clearResponse() {

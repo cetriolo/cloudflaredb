@@ -22,8 +22,8 @@ func NewRoomHandler(repo *repository.RoomRepository) *RoomHandler {
 }
 
 // CreateRoom handles POST /rooms
-// Creates a new room with the provided name and capacity.
-// Returns 400 if request body is invalid, name is missing, or capacity is less than 1.
+// Creates a new room with the provided name and optional room_type_id.
+// Returns 400 if request body is invalid or name is missing.
 // Returns 201 with the created room on success.
 func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateRoomRequest
@@ -35,11 +35,6 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	// Validate required fields
 	if req.Name == "" {
 		httputil.RespondError(w, http.StatusBadRequest, "Room name is required")
-		return
-	}
-
-	if req.Capacity < 1 {
-		httputil.RespondError(w, http.StatusBadRequest, "Capacity must be at least 1")
 		return
 	}
 
