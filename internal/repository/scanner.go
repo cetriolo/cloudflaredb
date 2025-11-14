@@ -92,19 +92,19 @@ type ColumnScanner interface {
 // and falls back to position-based scanning for sql.Row.
 func scanUser(scanner interface {
 	Scan(dest ...interface{}) error
-}, id *int64, email, name *string, createdAt, updatedAt *time.Time) error {
+}, id *int64, externalID *string, createdAt, updatedAt *time.Time) error {
 	// Try to get column names if available (for *sql.Rows).
 	// This approach is more robust against column ordering differences between databases.
 	if colScanner, ok := scanner.(ColumnScanner); ok {
-		return scanUserWithColumns(colScanner, id, email, name, createdAt, updatedAt)
+		return scanUserWithColumns(colScanner, id, externalID, createdAt, updatedAt)
 	}
 
 	// Fallback to position-based scanning for *sql.Row.
-	// Assumes columns are in the order: id, email, name, created_at, updated_at
+	// Assumes columns are in the order: id, external_id, created_at, updated_at
 	var createdAtNT, updatedAtNT NullableTime
 	var idFloat float64
 
-	err := scanner.Scan(&idFloat, email, name, &createdAtNT, &updatedAtNT)
+	err := scanner.Scan(&idFloat, externalID, &createdAtNT, &updatedAtNT)
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func scanUser(scanner interface {
 //  2. Scans all values into interface{} pointers
 //  3. Maps each value to the appropriate struct field based on column name
 //  4. Handles type conversions (float64 to int64 for IDs, string/time.Time for timestamps)
-func scanUserWithColumns(scanner ColumnScanner, id *int64, email, name *string, createdAt, updatedAt *time.Time) error {
+func scanUserWithColumns(scanner ColumnScanner, id *int64, externalID *string, createdAt, updatedAt *time.Time) error {
 	cols, err := scanner.Columns()
 	if err != nil {
 		return err
@@ -157,16 +157,17 @@ func scanUserWithColumns(scanner ColumnScanner, id *int64, email, name *string, 
 
 		switch col {
 		case "id":
-			if f, ok := val.(float64); ok {
-				*id = int64(f)
+			switch v := val.(type) {
+			case float64:
+				*id = int64(v)
+			case int64:
+				*id = v
+			case int:
+				*id = int64(v)
 			}
-		case "email":
+		case "external_id":
 			if s, ok := val.(string); ok {
-				*email = s
-			}
-		case "name":
-			if s, ok := val.(string); ok {
-				*name = s
+				*externalID = s
 			}
 		case "created_at":
 			*createdAt = parseTimeValue(val)
@@ -181,32 +182,40 @@ func scanUserWithColumns(scanner ColumnScanner, id *int64, email, name *string, 
 // scanRoom is a helper function to scan a room row from database results.
 // It handles the same database driver quirks as scanUser:
 //   - Cloudflare D1 timestamp strings (via NullableTime)
-//   - Cloudflare D1 numeric type conversions (float64 to int64/int)
+//   - Cloudflare D1 numeric type conversions (float64 to int64)
 //   - Cloudflare D1 column ordering issues (uses column names when available)
 //
 // The function attempts to use column-name-based scanning when available (sql.Rows),
 // and falls back to position-based scanning for sql.Row.
 func scanRoom(scanner interface {
 	Scan(dest ...interface{}) error
-}, id *int64, name, description *string, capacity *int, createdAt, updatedAt *time.Time) error {
+}, id *int64, name, description *string, roomTypeID **int64, createdAt, updatedAt *time.Time) error {
 	// Try to get column names if available (for *sql.Rows).
 	// This approach is more robust against column ordering differences between databases.
 	if colScanner, ok := scanner.(ColumnScanner); ok {
-		return scanRoomWithColumns(colScanner, id, name, description, capacity, createdAt, updatedAt)
+		return scanRoomWithColumns(colScanner, id, name, description, roomTypeID, createdAt, updatedAt)
 	}
 
 	// Fallback to position-based scanning for *sql.Row.
-	// Assumes columns are in the order: id, name, description, capacity, created_at, updated_at
+	// Assumes columns are in the order: id, name, description, room_type_id, created_at, updated_at
 	var createdAtNT, updatedAtNT NullableTime
-	var idFloat, capacityFloat float64
+	var idFloat float64
+	var roomTypeIDFloat interface{}
 
-	err := scanner.Scan(&idFloat, name, description, &capacityFloat, &createdAtNT, &updatedAtNT)
+	err := scanner.Scan(&idFloat, name, description, &roomTypeIDFloat, &createdAtNT, &updatedAtNT)
 	if err != nil {
 		return err
 	}
 
 	*id = int64(idFloat)
-	*capacity = int(capacityFloat)
+
+	// Handle nullable room_type_id
+	if roomTypeIDFloat != nil {
+		if f, ok := roomTypeIDFloat.(float64); ok {
+			val := int64(f)
+			*roomTypeID = &val
+		}
+	}
 
 	if createdAtNT.Valid {
 		*createdAt = createdAtNT.Time
@@ -227,8 +236,8 @@ func scanRoom(scanner interface {
 //  1. Retrieves column names from the scanner
 //  2. Scans all values into interface{} pointers
 //  3. Maps each value to the appropriate struct field based on column name
-//  4. Handles type conversions (float64 to int64/int, string/time.Time for timestamps)
-func scanRoomWithColumns(scanner ColumnScanner, id *int64, name, description *string, capacity *int, createdAt, updatedAt *time.Time) error {
+//  4. Handles type conversions (float64 to int64, string/time.Time for timestamps)
+func scanRoomWithColumns(scanner ColumnScanner, id *int64, name, description *string, roomTypeID **int64, createdAt, updatedAt *time.Time) error {
 	cols, err := scanner.Columns()
 	if err != nil {
 		return err
@@ -254,8 +263,13 @@ func scanRoomWithColumns(scanner ColumnScanner, id *int64, name, description *st
 
 		switch col {
 		case "id":
-			if f, ok := val.(float64); ok {
-				*id = int64(f)
+			switch v := val.(type) {
+			case float64:
+				*id = int64(v)
+			case int64:
+				*id = v
+			case int:
+				*id = int64(v)
 			}
 		case "name":
 			if s, ok := val.(string); ok {
@@ -265,9 +279,16 @@ func scanRoomWithColumns(scanner ColumnScanner, id *int64, name, description *st
 			if s, ok := val.(string); ok {
 				*description = s
 			}
-		case "capacity":
-			if f, ok := val.(float64); ok {
-				*capacity = int(f)
+		case "room_type_id":
+			switch v := val.(type) {
+			case float64:
+				val := int64(v)
+				*roomTypeID = &val
+			case int64:
+				*roomTypeID = &v
+			case int:
+				val := int64(v)
+				*roomTypeID = &val
 			}
 		case "created_at":
 			*createdAt = parseTimeValue(val)
@@ -310,4 +331,105 @@ func parseTimeValue(val interface{}) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// scanRoomType is a helper function to scan a room type row from database results.
+// It handles the same database driver quirks as scanUser and scanRoom:
+//   - Cloudflare D1 timestamp strings (via NullableTime)
+//   - Cloudflare D1 numeric type conversions (float64 to int64)
+//   - Cloudflare D1 column ordering issues (uses column names when available)
+//
+// The function attempts to use column-name-based scanning when available (sql.Rows),
+// and falls back to position-based scanning for sql.Row.
+func scanRoomType(scanner interface {
+	Scan(dest ...interface{}) error
+}, id *int64, size, style *string, createdAt, updatedAt *time.Time) error {
+	// Try to get column names if available (for *sql.Rows).
+	// This approach is more robust against column ordering differences between databases.
+	if colScanner, ok := scanner.(ColumnScanner); ok {
+		return scanRoomTypeWithColumns(colScanner, id, size, style, createdAt, updatedAt)
+	}
+
+	// Fallback to position-based scanning for *sql.Row.
+	// Assumes columns are in the order: id, size, style, created_at, updated_at
+	var createdAtNT, updatedAtNT NullableTime
+	var idFloat float64
+
+	err := scanner.Scan(&idFloat, size, style, &createdAtNT, &updatedAtNT)
+	if err != nil {
+		return err
+	}
+
+	*id = int64(idFloat)
+
+	if createdAtNT.Valid {
+		*createdAt = createdAtNT.Time
+	}
+	if updatedAtNT.Valid {
+		*updatedAt = updatedAtNT.Time
+	}
+
+	return nil
+}
+
+// scanRoomTypeWithColumns scans a room type using column names for accurate field mapping.
+// This approach is essential when working with Cloudflare D1, which may return columns
+// in a different order than expected. By mapping values using column names instead of
+// positions, we ensure correctness regardless of column order.
+//
+// The function:
+//  1. Retrieves column names from the scanner
+//  2. Scans all values into interface{} pointers
+//  3. Maps each value to the appropriate struct field based on column name
+//  4. Handles type conversions (float64 to int64 for IDs, string/time.Time for timestamps)
+func scanRoomTypeWithColumns(scanner ColumnScanner, id *int64, size, style *string, createdAt, updatedAt *time.Time) error {
+	cols, err := scanner.Columns()
+	if err != nil {
+		return err
+	}
+
+	// Create a map to store values by column name
+	values := make([]interface{}, len(cols))
+	for i := range values {
+		values[i] = new(interface{})
+	}
+
+	err = scanner.Scan(values...)
+	if err != nil {
+		return err
+	}
+
+	// Map values to struct fields based on column names
+	for i, col := range cols {
+		val := *(values[i].(*interface{}))
+		if val == nil {
+			continue
+		}
+
+		switch col {
+		case "id":
+			switch v := val.(type) {
+			case float64:
+				*id = int64(v)
+			case int64:
+				*id = v
+			case int:
+				*id = int64(v)
+			}
+		case "size":
+			if s, ok := val.(string); ok {
+				*size = s
+			}
+		case "style":
+			if s, ok := val.(string); ok {
+				*style = s
+			}
+		case "created_at":
+			*createdAt = parseTimeValue(val)
+		case "updated_at":
+			*updatedAt = parseTimeValue(val)
+		}
+	}
+
+	return nil
 }
