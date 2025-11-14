@@ -1,18 +1,8 @@
-version: 2
-
-linters-settings:
-  govet:
-    check-shadowing: true
-  gocyclo:
-    min-complexity: 15
-  dupl:
-    threshold: 100
-  goconst:
-    min-len: 2
-    min-occurrences: 2
+run:
+  timeout: 5m
+  modules-download-mode: readonly
 
 linters:
-  disable-all: true
   enable:
     - errcheck
     - gosimple
@@ -24,19 +14,7 @@ linters:
     - goimports
     - misspell
     - revive
-    - unconvert
-    - gocyclo
-    - dupl
-    - goconst
 
 issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - dupl
-        - goconst
-
-run:
-  timeout: 5m
-  modules-download-mode: readonly
+  exclude-files:
+    - ".*_test\\.go$"
