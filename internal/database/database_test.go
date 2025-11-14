@@ -45,6 +45,7 @@ func TestNew(t *testing.T) {
 			if !tt.wantErr {
 				if db == nil {
 					t.Error("Expected non-nil database")
+					return
 				}
 				defer func(db *DB) {
 					err := db.Close()

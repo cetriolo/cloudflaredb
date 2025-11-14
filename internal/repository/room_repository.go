@@ -338,7 +338,12 @@ func (r *RoomRepository) GetUserRooms(ctx context.Context, userID int64) ([]*mod
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user rooms: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	var rooms []*models.Room
 	for rows.Next() {

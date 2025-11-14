@@ -68,7 +68,11 @@ func main() {
 	// Returns 200 OK with a simple JSON status message
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy"}`))
+		_, err := w.Write([]byte(`{"status":"healthy"}`))
+		if err != nil {
+			log.Printf("Failed to write health response: %v", err)
+			return
+		}
 		if _, err := w.Write([]byte(`{"status":"healthy"}`)); err != nil {
 			log.Printf("Failed to write health check response: %v", err)
 		}

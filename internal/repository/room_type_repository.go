@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"cloudflaredb/internal/models"
@@ -57,7 +58,12 @@ func (r *RoomTypeRepository) GetByID(ctx context.Context, id int64) (*models.Roo
 	if err != nil {
 		return nil, fmt.Errorf("failed to query room type: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	if !rows.Next() {
 		return nil, fmt.Errorf("room type not found")
@@ -91,7 +97,12 @@ func (r *RoomTypeRepository) List(ctx context.Context, limit, offset int) ([]*mo
 	if err != nil {
 		return nil, fmt.Errorf("failed to list room types: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Printf("failed to close rows: %v\n", err)
+		}
+	}(rows)
 
 	var roomTypes []*models.RoomType
 	for rows.Next() {
